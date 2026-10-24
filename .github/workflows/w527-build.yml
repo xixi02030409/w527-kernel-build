@@ -61,6 +61,7 @@ jobs:
           sed -i '/ifdef stackp-check/,/endif/{s/exit 1/true/}' Makefile
           export ARCH=arm64 CROSS_COMPILE=aarch64-linux-android-
           make olddefconfig
+          cp .config ../final_config.txt
 
       - name: Build kernel + modules
         run: |
@@ -80,6 +81,7 @@ jobs:
           path: |
             source/build.log
             source/include/config/kernel.release
+            final_config.txt
           if-no-files-found: ignore
 
       - name: Build external camera modules (sharkl5 set)
