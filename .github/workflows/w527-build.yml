@@ -63,24 +63,24 @@ jobs:
           sed -i 's/^EXTRAVERSION =.*/EXTRAVERSION =/' Makefile
           grep '^EXTRAVERSION' Makefile || echo "EXTRAVERSION cleared"
           python3 << 'PYEOF'
-          # W527 port: add s_master_keys to struct super_block (v2 keyring field,
-          # present in android-4.14 backport but missing from this SPRD tree)
+          # W527 port: add s_master_keys (struct key *) to struct super_block
+          # (v2 keyring field; present in android-4.14 backport, missing here)
           import re
           p = 'include/linux/fs.h'
           s = open(p).read()
           if 's_master_keys' not in s:
               s2, n1 = re.subn(
                   r'(const struct fscrypt_operations\s+\*s_cop;)',
-                  r'\1\n#ifdef CONFIG_FS_ENCRYPTION\n\tstruct fscrypt_keyring\t*s_master_keys;\n#endif',
+                  r'\1\n#ifdef CONFIG_FS_ENCRYPTION\n\tstruct key\t*s_master_keys;\n#endif',
                   s, count=1)
               s2, n2 = re.subn(
                   r'(struct fscrypt_operations;)',
-                  r'\1\nstruct fscrypt_keyring;',
+                  r'\1\nstruct key;',
                   s2, count=1)
               if n1 != 1 or n2 != 1:
                   raise SystemExit('fs.h patch anchors not found: n1=%d n2=%d' % (n1, n2))
               open(p, 'w').write(s2)
-              print('fs.h patched: s_master_keys added')
+              print('fs.h patched: s_master_keys (struct key*) added')
           else:
               print('fs.h already patched')
           PYEOF
