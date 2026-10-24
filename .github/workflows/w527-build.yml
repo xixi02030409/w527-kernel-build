@@ -48,25 +48,14 @@ jobs:
         run: |
           aarch64-linux-android-gcc --version
 
-      - name: Overlay fscrypt v2 backport (A11 vold requires v2 API)
+      - name: Overlay fscrypt v2 backport + migrated fs glue (A11 vold requires v2 API)
         run: |
-          mkdir -p $HOME/fscrypt-ref && cd $HOME/fscrypt-ref
-          git clone --depth=1 --branch=deprecated/android-4.14-stable \
-            --filter=blob:none --no-checkout \
-            https://github.com/TelegramAt25/android_kernel_common_4.14.git ref
-          cd ref
-          git sparse-checkout init --cone
-          git sparse-checkout set fs/crypto include/linux include/uapi/linux
-          git checkout
-          cd $GITHUB_WORKSPACE/source
-          rm -rf fs/crypto
-          cp -r $HOME/fscrypt-ref/ref/fs/crypto fs/crypto
-          cp $HOME/fscrypt-ref/ref/include/linux/fscrypt.h include/linux/fscrypt.h
-          cp $HOME/fscrypt-ref/ref/include/uapi/linux/fscrypt.h include/uapi/linux/fscrypt.h
+          tar -xzf overlay_fscrypt_v2.tar.gz -C source
+          cd source
           rm -f include/linux/fscrypt_notsupp.h include/linux/fscrypt_supp.h
           echo "=== fs/crypto files ==="; ls fs/crypto/
-          echo "=== old-API call sites to migrate (will error at compile) ==="
-          grep -rln "fscrypt_encrypt_page\b\|fscrypt_decrypt_page\b\|fscrypt_pullback_bio_page\|fscrypt_release_ctx\|fscrypt_decrypt_bio_pages" fs/f2fs fs/ext4 || true
+          echo "=== v1 page-API remnants (expect clean) ==="
+          grep -rln "fscrypt_encrypt_page(\|fscrypt_decrypt_page(\|fscrypt_pullback_bio_page\|fscrypt_restore_control_page\|fscrypt_control_page\|fscrypt_decrypt_bio_pages" fs/ || echo "clean"
 
       - name: Apply W527 real device config and vermagic alignment
         run: |
