@@ -94,18 +94,6 @@ jobs:
           python3 port_drivers.py .
           grep -n "qmc,qmc6308\|da,da217" drivers/input/misc/qmc6308/qmc6308.c drivers/input/misc/mir3da/mir3da_cust.c
 
-      - name: Enable hynitron high-speed I2C path (touch lag fix)
-        run: |
-          cd source
-          if ! grep -q HIGH_SPEED_IIC_TRANSFER drivers/input/touchscreen/hynitron/Makefile; then
-            printf '\n# W527: factory-aligned fast I2C path (single combined transaction,\n# no per-transaction printk). Low-speed path did 2 bus transactions +\n# 2 unconditional printks per touch report -> touch lag / log flood.\nccflags-y += -DHIGH_SPEED_IIC_TRANSFER\n' >> drivers/input/touchscreen/hynitron/Makefile
-          fi
-          # fix uninitialized |= on i2c_msg flags (never-compiled branch; tree is -Werror)
-          sed -i 's/msg\.flags |= I2C_M_RD;/msg.flags = I2C_M_RD;/' drivers/input/touchscreen/hynitron/hynitron_i2c.c
-          sed -i 's/msgs\[1\]\.flags |= I2C_M_RD;/msgs[1].flags = I2C_M_RD;/' drivers/input/touchscreen/hynitron/hynitron_i2c.c
-          grep -n "HIGH_SPEED_IIC_TRANSFER" drivers/input/touchscreen/hynitron/Makefile
-          grep -n "I2C_M_RD" drivers/input/touchscreen/hynitron/hynitron_i2c.c
-
       - name: Overlay run#26 (map_user + systimer + gnss compatible fix + marlin_shutdown guard)
         run: |
           tar -xzf drivers_overlay_run26.tar.gz -C source
@@ -168,23 +156,33 @@ jobs:
           grep -n "sprd_map/" drivers/misc/Makefile
           grep -n "SPRD_SYSTIMER" drivers/soc/sprd/Makefile drivers/soc/sprd/Kconfig
 
-      - name: Overlay run#27 (CST9217 dedicated touch driver - fix 8.7Hz firmware starvation)
+      - name: Overlay run#33 (factory old-SDK hynitron FULL port - revert touch experiments)
         run: |
+          # User directive: stop patching (whack-a-mole), port the factory
+          # driver approach WHOLE. The vendor-tree hynitron SDK (this overlay,
+          # byte-identical incl. docs/ + firmware/ headers) is exactly what
+          # the TWRP kernel runs - proven full-speed on the CST9217.
+          # Reverts run#27-32 dedicated-driver experiments entirely.
+          rm -rf source/drivers/input/touchscreen/hynitron
           tar -xzf drivers_overlay_run27.tar.gz -C source
-          # config changes go to the REPO-ROOT w527.config (Apply step does
-          # `cp ../w527.config .config` from inside source/). Do NOT cd first.
-          if ! grep -q "^CONFIG_TOUCHSCREEN_HYNITRON_TS=n" w527.config; then
-            printf '\n# run#27: old hynitron SDK speaks cst3xx protocol - firmware starves\n# (8.7Hz reports, 200ms gaps). Dedicated CST9217 driver has correct ACK.\nCONFIG_TOUCHSCREEN_HYNITRON_TS=n\n' >> w527.config
-          fi
-          if ! grep -q "^CONFIG_TOUCHSCREEN_CST9217=y" w527.config; then
-            printf 'CONFIG_TOUCHSCREEN_CST9217=y\n' >> w527.config
-          fi
-          echo "=== config verify (repo root) ==="
+          # config: old SDK back ON, dedicated driver OFF
+          sed -i 's/^CONFIG_TOUCHSCREEN_HYNITRON_TS=.*/CONFIG_TOUCHSCREEN_HYNITRON_TS=y/' w527.config
+          sed -i 's/^CONFIG_TOUCHSCREEN_CST9217=.*/CONFIG_TOUCHSCREEN_CST9217=n/' w527.config
+          grep -q '^CONFIG_TOUCHSCREEN_HYNITRON_TS=y' w527.config || printf 'CONFIG_TOUCHSCREEN_HYNITRON_TS=y\n' >> w527.config
+          grep -q '^CONFIG_TOUCHSCREEN_CST9217=n' w527.config || printf 'CONFIG_TOUCHSCREEN_CST9217=n\n' >> w527.config
+          # NO HIGH_SPEED_IIC_TRANSFER (run#23 invention, not in factory/TWRP;
+          # suspected contributor to 8.7Hz starvation via combined I2C
+          # transactions the 9217 firmware may not support). Strip if present.
+          sed -i '/HIGH_SPEED_IIC_TRANSFER/d' source/drivers/input/touchscreen/hynitron/Makefile
+          # keep the genuine uninit-flags fix (audit finding, semantics-preserving)
+          sed -i 's/msg\.flags |= I2C_M_RD;/msg.flags = I2C_M_RD;/' source/drivers/input/touchscreen/hynitron/hynitron_i2c.c
+          sed -i 's/msgs\[1\]\.flags |= I2C_M_RD;/msgs[1].flags = I2C_M_RD;/' source/drivers/input/touchscreen/hynitron/hynitron_i2c.c
+          echo "=== config verify ==="
           grep -n "TOUCHSCREEN_HYNITRON_TS\|TOUCHSCREEN_CST9217" w527.config
-          echo "=== driver verify ==="
-          grep -n "hyn,92xx" source/drivers/input/touchscreen/hynitron_cst9217.c
-          grep -n "posx-reverse" source/drivers/input/touchscreen/hynitron_cst9217.c
-          grep -n "cst9217_pm_ops" source/drivers/input/touchscreen/hynitron_cst9217.c
+          echo "=== old SDK files (expect 28 incl docs+firmware) ==="
+          find source/drivers/input/touchscreen/hynitron -type f | wc -l
+          grep -c "hyn,92xx" source/drivers/input/touchscreen/hynitron/hynitron_core.c
+          grep -n "HIGH_SPEED" source/drivers/input/touchscreen/hynitron/Makefile || echo "no high-speed flag (factory-aligned)"
           grep -n "CST9217" source/drivers/input/touchscreen/Kconfig source/drivers/input/touchscreen/Makefile | head -3
 
       - name: Apply W527 real device config and vermagic alignment
