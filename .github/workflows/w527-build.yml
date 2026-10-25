@@ -106,6 +106,68 @@ jobs:
           grep -n "HIGH_SPEED_IIC_TRANSFER" drivers/input/touchscreen/hynitron/Makefile
           grep -n "I2C_M_RD" drivers/input/touchscreen/hynitron/hynitron_i2c.c
 
+      - name: Overlay run#26 (map_user + systimer + gnss compatible fix + marlin_shutdown guard)
+        run: |
+          tar -xzf drivers_overlay_run26.tar.gz -C source
+          cd source
+          python3 << 'PYEOF'
+          import sys
+          def replace(path, old, new, tag):
+              s = open(path).read()
+              n = s.count(old)
+              if n != 1:
+                  print('%s: anchor matched %d times, abort' % (tag, n)); sys.exit(1)
+              open(path, 'w').write(s.replace(old, new))
+              print('%s patched' % tag)
+          def insert_after(path, anchor, ins, tag):
+              s = open(path).read()
+              n = s.count(anchor)
+              if n != 1:
+                  print('%s: anchor matched %d times, abort' % (tag, n)); sys.exit(1)
+              open(path, 'w').write(s.replace(anchor, anchor + ins))
+              print('%s patched' % tag)
+          def append(path, text, tag):
+              s = open(path).read()
+              key = text.strip().splitlines()[0]
+              if key in s:
+                  print('%s already present' % tag); return
+              if not s.endswith('\n'):
+                  s += '\n'
+              open(path, 'a').write(text + '\n')
+              print('%s appended' % tag)
+
+          # 1) GNSS: DTB compatible is 'sprd,gnss-common-ctl' (dash); driver had
+          #    underscore variant -> of_match never matched -> all gnss nodes missing
+          replace('drivers/misc/sprdwcn/platform/gnss/gnss_common_ctl.c',
+                  '{.compatible = "sprd,gnss_common_ctl", .data = (void *)&gnssver},',
+                  '{.compatible = "sprd,gnss-common-ctl", .data = (void *)&gnssver},',
+                  'gnss-compatible')
+
+          # 2) marlin_shutdown NULL guard: probe may fail (avdd33-bound-wbreq
+          #    unbound) leaving marlin_dev NULL -> shutdown deref -> panic +0x1c
+          insert_after('drivers/misc/sprdwcn/platform/wcn_boot.c',
+                       'static void marlin_shutdown(struct platform_device *pdev)\n{\n',
+                       '\tif (!marlin_dev)\n\t\treturn;\n',
+                       'marlin_shutdown-guard')
+
+          # 3) mount sprd_map (map_user misc dev, DTB node 'sprd,map-user')
+          append('drivers/misc/Makefile', 'obj-y\t\t\t\t+= sprd_map/', 'sprd_map-mount')
+
+          # 4) mount systimer (sysfrt-timer + syst-timer boottime accounting;
+          #    CONFIG_SPRD_SYSTIMER=y already in w527.config but was dead)
+          append('drivers/soc/sprd/Kconfig',
+                 'config SPRD_SYSTIMER\n\tbool "Unisoc systimer/sysfrt boottime accounting"\n\tdefault y\n',
+                 'systimer-kconfig')
+          append('drivers/soc/sprd/Makefile',
+                 'obj-$(CONFIG_SPRD_SYSTIMER)\t+= sprd_systimer.o',
+                 'systimer-mount')
+          PYEOF
+          echo "=== verify ==="
+          grep -n "sprd,gnss-common-ctl" drivers/misc/sprdwcn/platform/gnss/gnss_common_ctl.c
+          grep -n -A1 "marlin_shutdown(struct platform_device" drivers/misc/sprdwcn/platform/wcn_boot.c | head -6
+          grep -n "sprd_map/" drivers/misc/Makefile
+          grep -n "SPRD_SYSTIMER" drivers/soc/sprd/Makefile drivers/soc/sprd/Kconfig
+
       - name: Apply W527 real device config and vermagic alignment
         run: |
           cd source
