@@ -94,6 +94,14 @@ jobs:
           python3 port_drivers.py .
           grep -n "qmc,qmc6308\|da,da217" drivers/input/misc/qmc6308/qmc6308.c drivers/input/misc/mir3da/mir3da_cust.c
 
+      - name: Enable hynitron high-speed I2C path (touch lag fix)
+        run: |
+          cd source
+          if ! grep -q HIGH_SPEED_IIC_TRANSFER drivers/input/touchscreen/hynitron/Makefile; then
+            printf '\n# W527: factory-aligned fast I2C path (single combined transaction,\n# no per-transaction printk). Low-speed path did 2 bus transactions +\n# 2 unconditional printks per touch report -> touch lag / log flood.\nccflags-y += -DHIGH_SPEED_IIC_TRANSFER\n' >> drivers/input/touchscreen/hynitron/Makefile
+          fi
+          grep -n "HIGH_SPEED_IIC_TRANSFER" drivers/input/touchscreen/hynitron/Makefile
+
       - name: Apply W527 real device config and vermagic alignment
         run: |
           cd source
