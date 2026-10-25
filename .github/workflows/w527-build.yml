@@ -100,7 +100,11 @@ jobs:
           if ! grep -q HIGH_SPEED_IIC_TRANSFER drivers/input/touchscreen/hynitron/Makefile; then
             printf '\n# W527: factory-aligned fast I2C path (single combined transaction,\n# no per-transaction printk). Low-speed path did 2 bus transactions +\n# 2 unconditional printks per touch report -> touch lag / log flood.\nccflags-y += -DHIGH_SPEED_IIC_TRANSFER\n' >> drivers/input/touchscreen/hynitron/Makefile
           fi
+          # fix uninitialized |= on i2c_msg flags (never-compiled branch; tree is -Werror)
+          sed -i 's/msg\.flags |= I2C_M_RD;/msg.flags = I2C_M_RD;/' drivers/input/touchscreen/hynitron/hynitron_i2c.c
+          sed -i 's/msgs\[1\]\.flags |= I2C_M_RD;/msgs[1].flags = I2C_M_RD;/' drivers/input/touchscreen/hynitron/hynitron_i2c.c
           grep -n "HIGH_SPEED_IIC_TRANSFER" drivers/input/touchscreen/hynitron/Makefile
+          grep -n "I2C_M_RD" drivers/input/touchscreen/hynitron/hynitron_i2c.c
 
       - name: Apply W527 real device config and vermagic alignment
         run: |
@@ -145,8 +149,13 @@ jobs:
           export ARCH=arm64 CROSS_COMPILE=aarch64-linux-android-
           KCFLAGS="-Wno-error=sizeof-pointer-memaccess -Wno-error=array-bounds -Wno-error=missing-braces -Wno-error=format"
           set -o pipefail
-          make -j$(nproc) Image KCFLAGS="$KCFLAGS" 2>&1 | tee build.log
-          echo "=== Image build exit: $? ==="
+          make -j$(nproc) Image KCFLAGS="$KCFLAGS" 2>&1 | tee build.log || {
+            echo "=== BUILD FAILED, extracting errors ==="
+            grep -nE "error:|Error [0-9]" build.log | head -50
+            grep -nE "error:|Error [0-9]" build.log | head -50 | while IFS= read -r l; do echo "::error::$l"; done
+            exit 1
+          }
+          echo "=== Image build OK ==="
           make modules 2>&1 | tee -a build.log
 
       - name: Upload build log (always)
