@@ -227,6 +227,7 @@ jobs:
           name: W527 4.14.336 build ${{ github.run_id }}
           files: |
             source/arch/arm64/boot/Image
+            source/Module.symvers
             modules336.tar.gz
             source/System.map
             source/build.log
