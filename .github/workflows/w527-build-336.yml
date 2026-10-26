@@ -173,7 +173,7 @@ jobs:
         run: |
           cd source
           export ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu-
-          KCFLAGS="-Wno-error=sizeof-pointer-memaccess -Wno-error=array-bounds -Wno-error=missing-braces -Wno-error=format -Wno-error=missing-attributes -Wno-error=address-of-packed-member -fno-tree-loop-distribute-patterns"
+          KCFLAGS="-Wno-error=sizeof-pointer-memaccess -Wno-error=array-bounds -Wno-error=missing-braces -Wno-error=format -Wno-error=missing-attributes -Wno-error=address-of-packed-member -Wno-error=zero-length-bounds -fno-tree-loop-distribute-patterns"
           set -o pipefail
           make -j$(nproc) Image KCFLAGS="$KCFLAGS" 2>&1 | tee build.log || {
             echo "=== BUILD FAILED, extracting errors ==="
