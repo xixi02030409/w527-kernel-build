@@ -328292,6 +328292,19 @@ index 0da9943d4..c310e8415 100644
  		if (gas->space_id == ACPI_ADR_SPACE_SYSTEM_MEMORY) {
  			r.flags = IORESOURCE_MEM;
  		} else if (gas->space_id == ACPI_ADR_SPACE_SYSTEM_IO) {
+diff --git a/drivers/wcn/wlan/sc2355/qos.c b/drivers/wcn/wlan/sc2355/qos.c
+index 08ca04c0b..2ee50a360 100644
+--- a/drivers/wcn/wlan/sc2355/qos.c
++++ b/drivers/wcn/wlan/sc2355/qos.c
+@@ -96,7 +96,7 @@ unsigned int pkt_get_prio(void *skb, int data_offset, unsigned char *tos)
+ 		unsigned short vlan_tag;
+ 		int vlan_prio;
+ 
+-		evh = (struct ethervlan_header *)eh;
++		evh = (struct ethervlan_header *)(void *)eh; /* void* hop: defuse -Waddress-of-packed-member */
+ 
+ 		vlan_tag = be16_to_cpu(evh->vlan_tag);
+ 		vlan_prio = (int)(vlan_tag >> VLAN_PRI_SHIFT) & VLAN_PRI_MASK;
 diff --git a/drivers/xen/balloon.c b/drivers/xen/balloon.c
 index f77e499af..f2b06fdb0 100644
 --- a/drivers/xen/balloon.c
