@@ -370996,7 +370996,7 @@ index d6821769d..f85e70bd4 100644
 +
  #endif /* _VIDEO_FONT_H */
 diff --git a/include/linux/fs.h b/include/linux/fs.h
-index b62cf14a9..8e394ad2a 100644
+index b62cf14a9..54ad93376 100644
 --- a/include/linux/fs.h
 +++ b/include/linux/fs.h
 @@ -59,6 +59,7 @@ struct workqueue_struct;
@@ -371066,12 +371066,8 @@ index b62cf14a9..8e394ad2a 100644
   * Q: What is the difference between I_WILL_FREE and I_FREEING?
   */
  #define I_DIRTY_SYNC		(1 << 0)
-@@ -2018,12 +2032,12 @@ static inline void init_sync_kiocb(struct kiocb *kiocb, struct file *filp)
- #define I_DIO_WAKEUP		(1 << __I_DIO_WAKEUP)
- #define I_LINKABLE		(1 << 10)
- #define I_DIRTY_TIME		(1 << 11)
--#define __I_DIRTY_TIME_EXPIRED	12
--#define I_DIRTY_TIME_EXPIRED	(1 << __I_DIRTY_TIME_EXPIRED)
+@@ -2022,8 +2036,10 @@ static inline void init_sync_kiocb(struct kiocb *kiocb, struct file *filp)
+ #define I_DIRTY_TIME_EXPIRED	(1 << __I_DIRTY_TIME_EXPIRED)
  #define I_WB_SWITCH		(1 << 13)
  #define I_OVL_INUSE			(1 << 14)
 +#define I_SYNC_QUEUED		(1 << 17)
@@ -371082,7 +371078,7 @@ index b62cf14a9..8e394ad2a 100644
  #define I_DIRTY_ALL (I_DIRTY | I_DIRTY_TIME)
  
  extern void __mark_inode_dirty(struct inode *, int);
-@@ -2598,6 +2612,8 @@ extern int filemap_flush(struct address_space *);
+@@ -2598,6 +2614,8 @@ extern int filemap_flush(struct address_space *);
  extern int filemap_fdatawait_keep_errors(struct address_space *mapping);
  extern int filemap_fdatawait_range(struct address_space *, loff_t lstart,
  				   loff_t lend);
@@ -371091,7 +371087,7 @@ index b62cf14a9..8e394ad2a 100644
  
  static inline int filemap_fdatawait(struct address_space *mapping)
  {
-@@ -2969,6 +2985,7 @@ extern loff_t no_seek_end_llseek_size(struct file *, loff_t, int, loff_t);
+@@ -2969,6 +2987,7 @@ extern loff_t no_seek_end_llseek_size(struct file *, loff_t, int, loff_t);
  extern loff_t no_seek_end_llseek(struct file *, loff_t, int);
  extern int generic_file_open(struct inode * inode, struct file * filp);
  extern int nonseekable_open(struct inode * inode, struct file * filp);
@@ -371099,7 +371095,7 @@ index b62cf14a9..8e394ad2a 100644
  
  #ifdef CONFIG_BLOCK
  typedef void (dio_submit_t)(struct bio *bio, struct inode *inode,
-@@ -2989,6 +3006,7 @@ enum {
+@@ -2989,6 +3008,7 @@ enum {
  };
  
  void dio_end_io(struct bio *bio);
@@ -371107,7 +371103,7 @@ index b62cf14a9..8e394ad2a 100644
  
  ssize_t __blockdev_direct_IO(struct kiocb *iocb, struct inode *inode,
  			     struct block_device *bdev, struct iov_iter *iter,
-@@ -3292,7 +3310,7 @@ void simple_transaction_set(struct file *file, size_t n);
+@@ -3292,7 +3312,7 @@ void simple_transaction_set(struct file *file, size_t n);
   * All attributes contain a text representation of a numeric value
   * that are accessed with the get() and set() functions.
   */
@@ -371116,7 +371112,7 @@ index b62cf14a9..8e394ad2a 100644
  static int __fops ## _open(struct inode *inode, struct file *file)	\
  {									\
  	__simple_attr_check_format(__fmt, 0ull);			\
-@@ -3303,10 +3321,16 @@ static const struct file_operations __fops = {				\
+@@ -3303,10 +3323,16 @@ static const struct file_operations __fops = {				\
  	.open	 = __fops ## _open,					\
  	.release = simple_attr_release,					\
  	.read	 = simple_attr_read,					\
@@ -371134,7 +371130,7 @@ index b62cf14a9..8e394ad2a 100644
  static inline __printf(1, 2)
  void __simple_attr_check_format(const char *fmt, ...)
  {
-@@ -3321,6 +3345,8 @@ ssize_t simple_attr_read(struct file *file, char __user *buf,
+@@ -3321,6 +3347,8 @@ ssize_t simple_attr_read(struct file *file, char __user *buf,
  			 size_t len, loff_t *ppos);
  ssize_t simple_attr_write(struct file *file, const char __user *buf,
  			  size_t len, loff_t *ppos);
