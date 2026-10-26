@@ -418002,7 +418002,7 @@ index 5d70fdbd8..3f08453e7 100644
  		} else
  			BUG_ON(page);
 diff --git a/mm/util.c b/mm/util.c
-index 842ba5fb6..7d80c8119 100644
+index 842ba5fb6..30e525c5e 100644
 --- a/mm/util.c
 +++ b/mm/util.c
 @@ -14,6 +14,7 @@
@@ -418013,46 +418013,7 @@ index 842ba5fb6..7d80c8119 100644
  
  #include <asm/sections.h>
  #include <linux/uaccess.h>
-@@ -264,6 +265,38 @@ int vma_is_stack_for_current(struct vm_area_struct *vma)
- 	return (vma->vm_start <= KSTK_ESP(t) && vma->vm_end >= KSTK_ESP(t));
- }
- 
-+/**
-+ * randomize_page - Generate a random, page aligned address
-+ * @start:	The smallest acceptable address the caller will take.
-+ * @range:	The size of the area, starting at @start, within which the
-+ *		random address must fall.
-+ *
-+ * If @start + @range would overflow, @range is capped.
-+ *
-+ * NOTE: Historical use of randomize_range, which this replaces, presumed that
-+ * @start was already page aligned.  We now align it regardless.
-+ *
-+ * Return: A page aligned address within [start, start + range).  On error,
-+ * @start is returned.
-+ */
-+unsigned long randomize_page(unsigned long start, unsigned long range)
-+{
-+	if (!PAGE_ALIGNED(start)) {
-+		range -= PAGE_ALIGN(start) - start;
-+		start = PAGE_ALIGN(start);
-+	}
-+
-+	if (start > ULONG_MAX - range)
-+		range = ULONG_MAX - start;
-+
-+	range >>= PAGE_SHIFT;
-+
-+	if (range == 0)
-+		return start;
-+
-+	return start + (get_random_long() % range << PAGE_SHIFT);
-+}
-+
- #if defined(CONFIG_MMU) && !defined(HAVE_ARCH_PICK_MMAP_LAYOUT)
- void arch_pick_mmap_layout(struct mm_struct *mm)
- {
-@@ -367,7 +400,8 @@ EXPORT_SYMBOL(vm_mmap);
+@@ -367,7 +368,8 @@ EXPORT_SYMBOL(vm_mmap);
   * __GFP_RETRY_MAYFAIL is supported, and it should be used only if kmalloc is
   * preferable to the vmalloc fallback, due to visible performance drawbacks.
   *
@@ -418062,7 +418023,7 @@ index 842ba5fb6..7d80c8119 100644
   */
  void *kvmalloc_node(size_t size, gfp_t flags, int node)
  {
-@@ -378,7 +412,8 @@ void *kvmalloc_node(size_t size, gfp_t flags, int node)
+@@ -378,7 +380,8 @@ void *kvmalloc_node(size_t size, gfp_t flags, int node)
  	 * vmalloc uses GFP_KERNEL for some internal allocations (e.g page tables)
  	 * so the given set of flags has to be compatible.
  	 */
@@ -418072,7 +418033,7 @@ index 842ba5fb6..7d80c8119 100644
  
  	/*
  	 * We want to attempt a large physically contiguous block first because
-@@ -417,6 +452,24 @@ void kvfree(const void *addr)
+@@ -417,6 +420,24 @@ void kvfree(const void *addr)
  }
  EXPORT_SYMBOL(kvfree);
  
