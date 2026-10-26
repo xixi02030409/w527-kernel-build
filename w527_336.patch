@@ -392305,7 +392305,7 @@ index 2616fd342..bfd128f93 100644
  		unsigned long m = *mask++;
  		unsafe_put_user((compat_ulong_t)m, umask++, Efault);
 diff --git a/kernel/cpu.c b/kernel/cpu.c
-index f21d030cf..d14d61e07 100644
+index f21d030cf..da85af3df 100644
 --- a/kernel/cpu.c
 +++ b/kernel/cpu.c
 @@ -30,6 +30,8 @@
@@ -392556,7 +392556,7 @@ index f21d030cf..d14d61e07 100644
  	},
 +	[CPUHP_RANDOM_PREPARE] = {
 +		.name			= "random:prepare",
-+		.startup.single		= random_prepare_cpu,
++		.startup.single		= NULL, /* vendor random has no cpuhp state */
 +		.teardown.single	= NULL,
 +	},
  	[CPUHP_WORKQUEUE_PREP] = {
@@ -392568,7 +392568,7 @@ index f21d030cf..d14d61e07 100644
  	},
 +	[CPUHP_AP_RANDOM_ONLINE] = {
 +		.name			= "random:online",
-+		.startup.single		= random_online_cpu,
++		.startup.single		= NULL, /* vendor random has no cpuhp state */
 +		.teardown.single	= NULL,
 +	},
  	[CPUHP_AP_RCUTREE_ONLINE] = {
