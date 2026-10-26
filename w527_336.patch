@@ -411036,7 +411036,7 @@ index 868f94716..82f6d5bf5 100644
  	return err;
  }
 diff --git a/kernel/panic.c b/kernel/panic.c
-index a2aee3341..fdbc84c22 100644
+index a2aee3341..4480d5585 100644
 --- a/kernel/panic.c
 +++ b/kernel/panic.c
 @@ -28,6 +28,7 @@
@@ -411101,7 +411101,7 @@ index a2aee3341..fdbc84c22 100644
  static long no_blink(int state)
  {
  	return 0;
-@@ -122,6 +163,19 @@ void nmi_panic(struct pt_regs *regs, const char *msg)
+@@ -122,6 +163,18 @@ void nmi_panic(struct pt_regs *regs, const char *msg)
  }
  EXPORT_SYMBOL(nmi_panic);
  
@@ -411110,8 +411110,7 @@ index a2aee3341..fdbc84c22 100644
 +	unsigned int limit;
 +
 +	if (panic_on_warn)
-+		panic("%s: panic_on_warn set ...
-+", origin);
++		panic("%s: panic_on_warn set ...\n", origin);
 +
 +	limit = READ_ONCE(warn_limit);
 +	if (atomic_inc_return(&warn_count) >= limit && limit)
@@ -411121,7 +411120,7 @@ index a2aee3341..fdbc84c22 100644
  #ifdef CONFIG_SPRD_SYSDUMP
  	extern void sysdump_enter(int enter_id,
  				const char *reason,
-@@ -144,6 +198,16 @@ void panic(const char *fmt, ...)
+@@ -144,6 +197,16 @@ void panic(const char *fmt, ...)
  	int old_cpu, this_cpu;
  	bool _crash_kexec_post_notifiers = crash_kexec_post_notifiers;
  
@@ -411138,7 +411137,7 @@ index a2aee3341..fdbc84c22 100644
  	/*
  	 * Disable local interrupts. This will prevent panic_smp_self_stop
  	 * from deadlocking the first cpu that invokes the panic, since
-@@ -151,6 +215,7 @@ void panic(const char *fmt, ...)
+@@ -151,6 +214,7 @@ void panic(const char *fmt, ...)
  	 * after setting panic_cpu) from invoking panic() again.
  	 */
  	local_irq_disable();
@@ -411146,7 +411145,7 @@ index a2aee3341..fdbc84c22 100644
  
  	/*
  	 * It's possible to come here directly from a panic-assertion and
-@@ -542,16 +607,7 @@ void __warn(const char *file, int line, void *caller, unsigned taint,
+@@ -542,16 +606,7 @@ void __warn(const char *file, int line, void *caller, unsigned taint,
  	if (args)
  		vprintk(args->fmt, args->args);
  
