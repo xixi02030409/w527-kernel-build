@@ -373237,16 +373237,10 @@ index c373295f3..cca606609 100644
  				   ) :		\
  	__roundup_pow_of_two(n)			\
 diff --git a/include/linux/lsm_hooks.h b/include/linux/lsm_hooks.h
-index 7161d8e7e..9a520f6f9 100644
+index 7161d8e7e..e3504007d 100644
 --- a/include/linux/lsm_hooks.h
 +++ b/include/linux/lsm_hooks.h
-@@ -1170,22 +1170,22 @@
-  *
-  * @binder_set_context_mgr:
-  *	Check whether @mgr is allowed to be the binder context manager.
-- *	@mgr contains the task_struct for the task being registered.
-+ *	@mgr contains the struct cred for the current binder process.
-  *	Return 0 if permission is granted.
+@@ -1175,17 +1175,17 @@
   * @binder_transaction:
   *	Check whether @from is allowed to invoke a binder transaction call
   *	to @to.
@@ -373270,27 +373264,6 @@ index 7161d8e7e..9a520f6f9 100644
   *
   * @ptrace_access_check:
   *	Check permission before allowing the current process to trace the
-@@ -1387,13 +1387,13 @@
-  *
-  */
- union security_list_options {
--	int (*binder_set_context_mgr)(struct task_struct *mgr);
--	int (*binder_transaction)(struct task_struct *from,
--					struct task_struct *to);
--	int (*binder_transfer_binder)(struct task_struct *from,
--					struct task_struct *to);
--	int (*binder_transfer_file)(struct task_struct *from,
--					struct task_struct *to,
-+	int (*binder_set_context_mgr)(const struct cred *mgr);
-+	int (*binder_transaction)(const struct cred *from,
-+					const struct cred *to);
-+	int (*binder_transfer_binder)(const struct cred *from,
-+					const struct cred *to);
-+	int (*binder_transfer_file)(const struct cred *from,
-+					const struct cred *to,
- 					struct file *file);
- 
- 	int (*ptrace_access_check)(struct task_struct *child,
 diff --git a/include/linux/mailbox_controller.h b/include/linux/mailbox_controller.h
 index 74deadb42..5a4524f66 100644
 --- a/include/linux/mailbox_controller.h
@@ -377612,63 +377585,9 @@ index 5fcb7dd36..b45ae1319 100644
  
  struct sched_domain_topology_level {
 diff --git a/include/linux/security.h b/include/linux/security.h
-index 73f1ef625..aa228ba3d 100644
+index 73f1ef625..d03747802 100644
 --- a/include/linux/security.h
 +++ b/include/linux/security.h
-@@ -197,13 +197,13 @@ static inline void security_free_mnt_opts(struct security_mnt_opts *opts)
- extern int security_init(void);
- 
- /* Security operations */
--int security_binder_set_context_mgr(struct task_struct *mgr);
--int security_binder_transaction(struct task_struct *from,
--				struct task_struct *to);
--int security_binder_transfer_binder(struct task_struct *from,
--				    struct task_struct *to);
--int security_binder_transfer_file(struct task_struct *from,
--				  struct task_struct *to, struct file *file);
-+int security_binder_set_context_mgr(const struct cred *mgr);
-+int security_binder_transaction(const struct cred *from,
-+				const struct cred *to);
-+int security_binder_transfer_binder(const struct cred *from,
-+				    const struct cred *to);
-+int security_binder_transfer_file(const struct cred *from,
-+				  const struct cred *to, struct file *file);
- int security_ptrace_access_check(struct task_struct *child, unsigned int mode);
- int security_ptrace_traceme(struct task_struct *parent);
- int security_capget(struct task_struct *target,
-@@ -424,25 +424,25 @@ static inline int security_init(void)
- 	return 0;
- }
- 
--static inline int security_binder_set_context_mgr(struct task_struct *mgr)
-+static inline int security_binder_set_context_mgr(const struct cred *mgr)
- {
- 	return 0;
- }
- 
--static inline int security_binder_transaction(struct task_struct *from,
--					      struct task_struct *to)
-+static inline int security_binder_transaction(const struct cred *from,
-+					      const struct cred *to)
- {
- 	return 0;
- }
- 
--static inline int security_binder_transfer_binder(struct task_struct *from,
--						  struct task_struct *to)
-+static inline int security_binder_transfer_binder(const struct cred *from,
-+						  const struct cred *to)
- {
- 	return 0;
- }
- 
--static inline int security_binder_transfer_file(struct task_struct *from,
--						struct task_struct *to,
-+static inline int security_binder_transfer_file(const struct cred *from,
-+						const struct cred *to,
- 						struct file *file)
- {
- 	return 0;
 @@ -780,7 +780,7 @@ static inline int security_inode_killpriv(struct dentry *dentry)
  
  static inline int security_inode_getsecurity(struct inode *inode, const char *name, void **buffer, bool alloc)
@@ -493256,42 +493175,9 @@ index 67703dbe2..30f4a9317 100644
  				if (*p)
  					audit_log_untrustedstring(ab, p);
 diff --git a/security/security.c b/security/security.c
-index fb4910f0d..f3aa7793f 100644
+index fb4910f0d..5341689b1 100644
 --- a/security/security.c
 +++ b/security/security.c
-@@ -223,25 +223,25 @@ EXPORT_SYMBOL(unregister_lsm_notifier);
- 
- /* Security operations */
- 
--int security_binder_set_context_mgr(struct task_struct *mgr)
-+int security_binder_set_context_mgr(const struct cred *mgr)
- {
- 	return call_int_hook(binder_set_context_mgr, 0, mgr);
- }
- 
--int security_binder_transaction(struct task_struct *from,
--				struct task_struct *to)
-+int security_binder_transaction(const struct cred *from,
-+				const struct cred *to)
- {
- 	return call_int_hook(binder_transaction, 0, from, to);
- }
- 
--int security_binder_transfer_binder(struct task_struct *from,
--				    struct task_struct *to)
-+int security_binder_transfer_binder(const struct cred *from,
-+				    const struct cred *to)
- {
- 	return call_int_hook(binder_transfer_binder, 0, from, to);
- }
- 
--int security_binder_transfer_file(struct task_struct *from,
--				  struct task_struct *to, struct file *file)
-+int security_binder_transfer_file(const struct cred *from,
-+				  const struct cred *to, struct file *file)
- {
- 	return call_int_hook(binder_transfer_file, 0, from, to, file);
- }
 @@ -922,12 +922,13 @@ static inline unsigned long mmap_prot(struct file *file, unsigned long prot)
  int security_mmap_file(struct file *file, unsigned long prot,
  			unsigned long flags)
@@ -493392,7 +493278,7 @@ index 2380b8d72..af70b4210 100644
  		}
  	}
 diff --git a/security/selinux/hooks.c b/security/selinux/hooks.c
-index 10ba79700..0cd839578 100644
+index 10ba79700..67c0463ee 100644
 --- a/security/selinux/hooks.c
 +++ b/security/selinux/hooks.c
 @@ -472,16 +472,10 @@ static int may_context_mount_inode_relabel(u32 sid,
@@ -493510,64 +493396,20 @@ index 10ba79700..0cd839578 100644
  }
  
  /* Convert a Linux signal to an access vector. */
-@@ -2114,21 +2147,18 @@ static inline u32 open_file_to_av(struct file *file)
+@@ -2175,12 +2208,6 @@ static int selinux_binder_transfer_file(struct task_struct *from,
+ 			return rc;
+ 	}
  
- /* Hook functions begin here. */
- 
--static int selinux_binder_set_context_mgr(struct task_struct *mgr)
-+static int selinux_binder_set_context_mgr(const struct cred *mgr)
- {
--	u32 mysid = current_sid();
--	u32 mgrsid = task_sid(mgr);
+-#ifdef CONFIG_BPF_SYSCALL
+-	rc = bpf_fd_pass(file, sid);
+-	if (rc)
+-		return rc;
+-#endif
 -
--	return avc_has_perm(mysid, mgrsid, SECCLASS_BINDER,
-+	return avc_has_perm(current_sid(), cred_sid(mgr), SECCLASS_BINDER,
- 			    BINDER__SET_CONTEXT_MGR, NULL);
- }
+ 	if (unlikely(IS_PRIVATE(d_backing_inode(dentry))))
+ 		return 0;
  
--static int selinux_binder_transaction(struct task_struct *from,
--				      struct task_struct *to)
-+static int selinux_binder_transaction(const struct cred *from,
-+				      const struct cred *to)
- {
- 	u32 mysid = current_sid();
--	u32 fromsid = task_sid(from);
--	u32 tosid = task_sid(to);
-+	u32 fromsid = cred_sid(from);
-+	u32 tosid = cred_sid(to);
- 	int rc;
- 
- 	if (mysid != fromsid) {
-@@ -2142,21 +2172,19 @@ static int selinux_binder_transaction(struct task_struct *from,
- 			    NULL);
- }
- 
--static int selinux_binder_transfer_binder(struct task_struct *from,
--					  struct task_struct *to)
-+static int selinux_binder_transfer_binder(const struct cred *from,
-+					  const struct cred *to)
- {
--	u32 fromsid = task_sid(from);
--	u32 tosid = task_sid(to);
--
--	return avc_has_perm(fromsid, tosid, SECCLASS_BINDER, BINDER__TRANSFER,
-+	return avc_has_perm(cred_sid(from), cred_sid(to),
-+			    SECCLASS_BINDER, BINDER__TRANSFER,
- 			    NULL);
- }
- 
--static int selinux_binder_transfer_file(struct task_struct *from,
--					struct task_struct *to,
-+static int selinux_binder_transfer_file(const struct cred *from,
-+					const struct cred *to,
- 					struct file *file)
- {
--	u32 sid = task_sid(to);
-+	u32 sid = cred_sid(to);
- 	struct file_security_struct *fsec = file->f_security;
- 	struct dentry *dentry = file->f_path.dentry;
- 	struct inode_security_struct *isec;
-@@ -3353,12 +3381,16 @@ static int selinux_inode_setsecurity(struct inode *inode, const char *name,
+@@ -3353,12 +3380,16 @@ static int selinux_inode_setsecurity(struct inode *inode, const char *name,
  				     const void *value, size_t size, int flags)
  {
  	struct inode_security_struct *isec = inode_security_novalidate(inode);
@@ -493584,7 +493426,7 @@ index 10ba79700..0cd839578 100644
  	if (!value || !size)
  		return -EACCES;
  
-@@ -5109,39 +5141,59 @@ static int selinux_tun_dev_open(void *security)
+@@ -5109,39 +5140,59 @@ static int selinux_tun_dev_open(void *security)
  
  static int selinux_nlmsg_perm(struct sock *sk, struct sk_buff *skb)
  {
@@ -493668,7 +493510,7 @@ index 10ba79700..0cd839578 100644
  }
  
  #ifdef CONFIG_NETFILTER
-@@ -5286,7 +5338,7 @@ static unsigned int selinux_ip_postroute_compat(struct sk_buff *skb,
+@@ -5286,7 +5337,7 @@ static unsigned int selinux_ip_postroute_compat(struct sk_buff *skb,
  	struct common_audit_data ad;
  	struct lsm_network_audit net = {0,};
  	char *addrp;
@@ -493677,7 +493519,7 @@ index 10ba79700..0cd839578 100644
  
  	if (sk == NULL)
  		return NF_ACCEPT;
-@@ -6117,7 +6169,10 @@ static void selinux_inode_invalidate_secctx(struct inode *inode)
+@@ -6117,7 +6168,10 @@ static void selinux_inode_invalidate_secctx(struct inode *inode)
   */
  static int selinux_inode_notifysecctx(struct inode *inode, void *ctx, u32 ctxlen)
  {
