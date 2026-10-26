@@ -372400,7 +372400,7 @@ index ca08ab16e..780c4859c 100644
  #define to_mdio_driver(d)						\
  	container_of(to_mdio_common_driver(d), struct mdio_driver, mdiodrv)
 diff --git a/include/linux/memcontrol.h b/include/linux/memcontrol.h
-index 69966c461..365d5079d 100644
+index 69966c461..bf7db4dfe 100644
 --- a/include/linux/memcontrol.h
 +++ b/include/linux/memcontrol.h
 @@ -48,13 +48,13 @@ enum memcg_stat_item {
@@ -372742,7 +372742,7 @@ index 69966c461..365d5079d 100644
  {
  	if (page->mem_cgroup)
  		count_memcg_events(page->mem_cgroup, idx, 1);
-@@ -653,13 +710,33 @@ static inline void count_memcg_event_mm(struct mm_struct *mm,
+@@ -653,13 +710,41 @@ static inline void count_memcg_event_mm(struct mm_struct *mm,
  
  	rcu_read_lock();
  	memcg = mem_cgroup_from_task(rcu_dereference(mm->owner));
@@ -372753,8 +372753,8 @@ index 69966c461..365d5079d 100644
 -	}
 +	if (likely(memcg))
 +		count_memcg_events(memcg, idx, 1);
-+	rcu_read_unlock();
-+}
+ 	rcu_read_unlock();
+ }
 +
 +static inline void memcg_memory_event(struct mem_cgroup *memcg,
 +				      enum memcg_memory_event event)
@@ -372775,18 +372775,24 @@ index 69966c461..365d5079d 100644
 +	memcg = mem_cgroup_from_task(rcu_dereference(mm->owner));
 +	if (likely(memcg))
 +		memcg_memory_event(memcg, event);
- 	rcu_read_unlock();
- }
++	rcu_read_unlock();
++}
++
++/* W527 merge: vendor 98 vmscan.c calls mem_cgroup_event(); 336 renamed it
++ * to memcg_memory_event() with same MEMCG_LOW/HIGH/etc values. Shim. */
++static inline void mem_cgroup_event(struct mem_cgroup *memcg,
++				    enum memcg_memory_event event)
++{
++	memcg_memory_event(memcg, event);
++}
 +
  #ifdef CONFIG_TRANSPARENT_HUGEPAGE
  void mem_cgroup_split_huge_fixup(struct page *head);
  #endif
-@@ -676,8 +753,13 @@ static inline bool mem_cgroup_disabled(void)
+@@ -676,8 +761,18 @@ static inline bool mem_cgroup_disabled(void)
  	return true;
  }
  
--static inline void mem_cgroup_event(struct mem_cgroup *memcg,
--				    enum memcg_event_item event)
 +static inline void memcg_memory_event(struct mem_cgroup *memcg,
 +				      enum memcg_memory_event event)
 +{
@@ -372794,6 +372800,12 @@ index 69966c461..365d5079d 100644
 +
 +static inline void memcg_memory_event_mm(struct mm_struct *mm,
 +					 enum memcg_memory_event event)
++{
++}
++
+ static inline void mem_cgroup_event(struct mem_cgroup *memcg,
+-				    enum memcg_event_item event)
++				    enum memcg_memory_event event)
  {
  }
  
