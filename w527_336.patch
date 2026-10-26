@@ -377044,10 +377044,18 @@ index d6821769d..f85e70bd4 100644
 +
  #endif /* _VIDEO_FONT_H */
 diff --git a/include/linux/fs.h b/include/linux/fs.h
-index b62cf14a9..fef045a61 100644
+index b62cf14a9..8e394ad2a 100644
 --- a/include/linux/fs.h
 +++ b/include/linux/fs.h
-@@ -148,6 +148,9 @@ typedef int (dio_iodone_t)(struct kiocb *iocb, loff_t offset,
+@@ -59,6 +59,7 @@ struct workqueue_struct;
+ struct iov_iter;
+ struct fscrypt_info;
+ struct fscrypt_operations;
++struct key;
+ 
+ extern void __init inode_init(void);
+ extern void __init inode_init_early(void);
+@@ -148,6 +149,9 @@ typedef int (dio_iodone_t)(struct kiocb *iocb, loff_t offset,
  /* Has write method(s) */
  #define FMODE_CAN_WRITE         ((__force fmode_t)0x40000)
  
@@ -377057,7 +377065,7 @@ index b62cf14a9..fef045a61 100644
  /* File was opened by fanotify and shouldn't generate fanotify events */
  #define FMODE_NONOTIFY		((__force fmode_t)0x4000000)
  
-@@ -642,6 +645,7 @@ struct inode {
+@@ -642,6 +646,7 @@ struct inode {
  		struct rcu_head		i_rcu;
  	};
  	u64			i_version;
@@ -377065,7 +377073,7 @@ index b62cf14a9..fef045a61 100644
  	atomic_t		i_count;
  	atomic_t		i_dio_count;
  	atomic_t		i_writecount;
-@@ -896,7 +900,7 @@ struct file_handle {
+@@ -896,7 +901,7 @@ struct file_handle {
  	__u32 handle_bytes;
  	int handle_type;
  	/* file identifier */
@@ -377074,7 +377082,7 @@ index b62cf14a9..fef045a61 100644
  };
  
  static inline struct file *get_file(struct file *f)
-@@ -904,7 +908,9 @@ static inline struct file *get_file(struct file *f)
+@@ -904,7 +909,9 @@ static inline struct file *get_file(struct file *f)
  	atomic_long_inc(&f->f_count);
  	return f;
  }
@@ -377085,7 +377093,17 @@ index b62cf14a9..fef045a61 100644
  #define fput_atomic(x)	atomic_long_add_unless(&(x)->f_count, -1, 1)
  #define file_count(x)	atomic_long_read(&(x)->f_count)
  
-@@ -2001,6 +2007,10 @@ static inline void init_sync_kiocb(struct kiocb *kiocb, struct file *filp)
+@@ -1361,6 +1368,9 @@ struct super_block {
+ 	const struct xattr_handler **s_xattr;
+ 
+ 	const struct fscrypt_operations	*s_cop;
++#ifdef CONFIG_FS_ENCRYPTION
++	struct key		*s_master_keys;
++#endif
+ 
+ 	struct hlist_bl_head	s_anon;		/* anonymous dentries for (nfs) exporting */
+ 	struct list_head	s_mounts;	/* list of mounts; _not_ for fs use */
+@@ -2001,6 +2011,10 @@ static inline void init_sync_kiocb(struct kiocb *kiocb, struct file *filp)
   * I_OVL_INUSE		Used by overlayfs to get exclusive ownership on upper
   *			and work dirs among overlayfs mounts.
   *
@@ -377096,7 +377114,7 @@ index b62cf14a9..fef045a61 100644
   * Q: What is the difference between I_WILL_FREE and I_FREEING?
   */
  #define I_DIRTY_SYNC		(1 << 0)
-@@ -2018,12 +2028,12 @@ static inline void init_sync_kiocb(struct kiocb *kiocb, struct file *filp)
+@@ -2018,12 +2032,12 @@ static inline void init_sync_kiocb(struct kiocb *kiocb, struct file *filp)
  #define I_DIO_WAKEUP		(1 << __I_DIO_WAKEUP)
  #define I_LINKABLE		(1 << 10)
  #define I_DIRTY_TIME		(1 << 11)
@@ -377112,7 +377130,7 @@ index b62cf14a9..fef045a61 100644
  #define I_DIRTY_ALL (I_DIRTY | I_DIRTY_TIME)
  
  extern void __mark_inode_dirty(struct inode *, int);
-@@ -2598,6 +2608,8 @@ extern int filemap_flush(struct address_space *);
+@@ -2598,6 +2612,8 @@ extern int filemap_flush(struct address_space *);
  extern int filemap_fdatawait_keep_errors(struct address_space *mapping);
  extern int filemap_fdatawait_range(struct address_space *, loff_t lstart,
  				   loff_t lend);
@@ -377121,7 +377139,7 @@ index b62cf14a9..fef045a61 100644
  
  static inline int filemap_fdatawait(struct address_space *mapping)
  {
-@@ -2969,6 +2981,7 @@ extern loff_t no_seek_end_llseek_size(struct file *, loff_t, int, loff_t);
+@@ -2969,6 +2985,7 @@ extern loff_t no_seek_end_llseek_size(struct file *, loff_t, int, loff_t);
  extern loff_t no_seek_end_llseek(struct file *, loff_t, int);
  extern int generic_file_open(struct inode * inode, struct file * filp);
  extern int nonseekable_open(struct inode * inode, struct file * filp);
@@ -377129,7 +377147,7 @@ index b62cf14a9..fef045a61 100644
  
  #ifdef CONFIG_BLOCK
  typedef void (dio_submit_t)(struct bio *bio, struct inode *inode,
-@@ -2989,6 +3002,7 @@ enum {
+@@ -2989,6 +3006,7 @@ enum {
  };
  
  void dio_end_io(struct bio *bio);
@@ -377137,7 +377155,7 @@ index b62cf14a9..fef045a61 100644
  
  ssize_t __blockdev_direct_IO(struct kiocb *iocb, struct inode *inode,
  			     struct block_device *bdev, struct iov_iter *iter,
-@@ -3292,7 +3306,7 @@ void simple_transaction_set(struct file *file, size_t n);
+@@ -3292,7 +3310,7 @@ void simple_transaction_set(struct file *file, size_t n);
   * All attributes contain a text representation of a numeric value
   * that are accessed with the get() and set() functions.
   */
@@ -377146,7 +377164,7 @@ index b62cf14a9..fef045a61 100644
  static int __fops ## _open(struct inode *inode, struct file *file)	\
  {									\
  	__simple_attr_check_format(__fmt, 0ull);			\
-@@ -3303,10 +3317,16 @@ static const struct file_operations __fops = {				\
+@@ -3303,10 +3321,16 @@ static const struct file_operations __fops = {				\
  	.open	 = __fops ## _open,					\
  	.release = simple_attr_release,					\
  	.read	 = simple_attr_read,					\
@@ -377164,7 +377182,7 @@ index b62cf14a9..fef045a61 100644
  static inline __printf(1, 2)
  void __simple_attr_check_format(const char *fmt, ...)
  {
-@@ -3321,6 +3341,8 @@ ssize_t simple_attr_read(struct file *file, char __user *buf,
+@@ -3321,6 +3345,8 @@ ssize_t simple_attr_read(struct file *file, char __user *buf,
  			 size_t len, loff_t *ppos);
  ssize_t simple_attr_write(struct file *file, const char __user *buf,
  			  size_t len, loff_t *ppos);
