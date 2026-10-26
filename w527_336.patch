@@ -367292,23 +367292,6 @@ index d591bb77f..f4bff2313 100644
  /* in processor_perflib.c */
  
  #ifdef CONFIG_CPU_FREQ
-diff --git a/include/asm-generic/bugs.h b/include/asm-generic/bugs.h
-deleted file mode 100644
-index 69021830f..000000000
---- a/include/asm-generic/bugs.h
-+++ /dev/null
-@@ -1,11 +0,0 @@
--/* SPDX-License-Identifier: GPL-2.0 */
--#ifndef __ASM_GENERIC_BUGS_H
--#define __ASM_GENERIC_BUGS_H
--/*
-- * This file is included by 'init/main.c' to check for
-- * architecture-dependent bugs.
-- */
--
--static inline void check_bugs(void) { }
--
--#endif	/* __ASM_GENERIC_BUGS_H */
 diff --git a/include/asm-generic/futex.h b/include/asm-generic/futex.h
 index fcb61b465..8666fe7f3 100644
 --- a/include/asm-generic/futex.h
