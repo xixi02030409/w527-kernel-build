@@ -184423,6 +184423,59 @@ index 6956f7e7d..ca5f0102d 100644
  	void *buf_base = NULL;
  	enum xp_retval (*get_partition_rsvd_page_pa)
  		(void *, u64 *, unsigned long *, size_t *) =
+diff --git a/drivers/misc/sprdwcn/platform/gnss/gnss_dump.c b/drivers/misc/sprdwcn/platform/gnss/gnss_dump.c
+index 961848d0a..3577feb43 100644
+--- a/drivers/misc/sprdwcn/platform/gnss/gnss_dump.c
++++ b/drivers/misc/sprdwcn/platform/gnss/gnss_dump.c
+@@ -204,7 +204,7 @@ static int gnss_dump_cp_register_data(u32 addr, u32 len)
+ 		return -ENOMEM;
+ 	}
+ 
+-	if (IS_ERR(gnss_dump_file)) {
++	if (!gnss_dump_file || IS_ERR(gnss_dump_file)) {
+ 		gnss_dump_file = filp_open(GNSS_MEMDUMP_PATH,
+ 			O_RDWR | O_CREAT | O_APPEND, 0666);
+ 		if (IS_ERR(gnss_dump_file)) {
+@@ -269,7 +269,7 @@ static int gnss_dump_ap_register(void)
+ 	struct regmap_dump *gnss_ap_reg = NULL;
+ 
+ 	GNSSDUMP_INFO("%s ap reg data\n", __func__);
+-	if (IS_ERR(gnss_dump_file)) {
++	if (!gnss_dump_file || IS_ERR(gnss_dump_file)) {
+ 		gnss_dump_file = filp_open(GNSS_MEMDUMP_PATH,
+ 			O_RDWR | O_CREAT | O_APPEND, 0666);
+ 		if (IS_ERR(gnss_dump_file)) {
+@@ -387,7 +387,7 @@ static int gnss_dump_share_memory(u32 len)
+ 		return -1;
+ 	}
+ 
+-	if (IS_ERR(gnss_dump_file)) {
++	if (!gnss_dump_file || IS_ERR(gnss_dump_file)) {
+ 		gnss_dump_file = filp_open(GNSS_MEMDUMP_PATH,
+ 			O_RDWR | O_CREAT | O_APPEND, 0666);
+ 		if (IS_ERR(gnss_dump_file)) {
+@@ -478,7 +478,7 @@ static int gnss_ext_dump_data(unsigned int start_addr, int len)
+ 		return -ENOMEM;
+ 	}
+ 
+-	if (IS_ERR(gnss_dump_file)) {
++	if (!gnss_dump_file || IS_ERR(gnss_dump_file)) {
+ 		gnss_dump_file = filp_open(GNSS_MEMDUMP_PATH,
+ 			O_RDWR | O_CREAT | O_APPEND, 0666);
+ 		if (IS_ERR(gnss_dump_file)) {
+diff --git a/drivers/misc/sprdwcn/platform/rdc_debug.c b/drivers/misc/sprdwcn/platform/rdc_debug.c
+index c06265b31..f8b8ca1c8 100644
+--- a/drivers/misc/sprdwcn/platform/rdc_debug.c
++++ b/drivers/misc/sprdwcn/platform/rdc_debug.c
+@@ -80,7 +80,7 @@ int dumpmem_rx_callback(void *addr, unsigned int len)
+ 	ssize_t ret;
+ 
+ 	WCN_INFO("%s\n", __func__);
+-	if (IS_ERR(dump_file))
++	if (!dump_file || IS_ERR(dump_file))
+ 		return -1;
+ 	ret = kernel_write(dump_file, addr, len, &mem_pos);
+ 	if (ret != len) {
 diff --git a/drivers/misc/ti-st/st_core.c b/drivers/misc/ti-st/st_core.c
 index eda8d407b..e5fbd61f6 100644
 --- a/drivers/misc/ti-st/st_core.c
