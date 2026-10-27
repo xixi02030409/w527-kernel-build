@@ -25048,6 +25048,18 @@ index 67d4c3397..eea58f8ec 100644
  #define PSR_PAN_BIT	0x00400000
  #define PSR_UAO_BIT	0x00800000
  #define PSR_Q_BIT	0x08000000
+diff --git a/arch/arm64/kernel/Makefile b/arch/arm64/kernel/Makefile
+index 714fe90db..15b73ab82 100644
+--- a/arch/arm64/kernel/Makefile
++++ b/arch/arm64/kernel/Makefile
+@@ -61,6 +61,7 @@ arm64-obj-$(CONFIG_HARDEN_BRANCH_PREDICTOR)	+= bpi.o
+ endif
+ 
+ obj-y					+= $(arm64-obj-y) vdso/ probes/
++obj-y					+= cmpxchg_compat.o
+ obj-m					+= $(arm64-obj-m)
+ head-y					:= head.o
+ extra-y					+= $(head-y) vmlinux.lds
 diff --git a/arch/arm64/kernel/acpi.c b/arch/arm64/kernel/acpi.c
 index b3162715e..285f0b485 100644
 --- a/arch/arm64/kernel/acpi.c
@@ -25317,6 +25329,34 @@ index e5de33513..bd6ef8750 100644
 +	hint	#22	/* aka clearbhb */
 +	isb
 +ENTRY(__spectre_bhb_clearbhb_end)
+diff --git a/arch/arm64/kernel/cmpxchg_compat.c b/arch/arm64/kernel/cmpxchg_compat.c
+new file mode 100644
+index 000000000..7316e7b6d
+--- /dev/null
++++ b/arch/arm64/kernel/cmpxchg_compat.c
+@@ -0,0 +1,22 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * W527 compat: closed-source vendor modules (built against 4.14.98) call
++ * the out-of-line ll_sc cmpxchg helpers with byte-size suffixes
++ * (__cmpxchg_case_mb_4 etc).  Stable backports renamed them to bit-width
++ * suffixes (__cmpxchg_case_mb_32 etc) with identical semantics
++ * (4 bytes == 32 bits).  Provide the old names via tail-call wrappers
++ * so the modules resolve on this kernel.
++ */
++#include <linux/export.h>
++
++extern unsigned long __ll_sc___cmpxchg_case_mb_32(volatile void *ptr,
++						  unsigned long old,
++						  unsigned long new);
++
++unsigned long __ll_sc___cmpxchg_case_mb_4(volatile void *ptr,
++					  unsigned long old,
++					  unsigned long new)
++{
++	return __ll_sc___cmpxchg_case_mb_32(ptr, old, new);
++}
++EXPORT_SYMBOL(__ll_sc___cmpxchg_case_mb_4);
 diff --git a/arch/arm64/kernel/cpu_errata.c b/arch/arm64/kernel/cpu_errata.c
 index 3d6d7fae4..c1d1b37bc 100644
 --- a/arch/arm64/kernel/cpu_errata.c
@@ -378097,6 +378137,29 @@ index 000a5954b..0a958c794 100644
  
  #define US_FLAG(name, value)	US_FL_##name = value ,
  enum { US_DO_ALL_FLAGS };
+diff --git a/include/linux/vermagic.h b/include/linux/vermagic.h
+index bae807eb2..9601d5d90 100644
+--- a/include/linux/vermagic.h
++++ b/include/linux/vermagic.h
+@@ -17,11 +17,14 @@
+ #else
+ #define MODULE_VERMAGIC_MODULE_UNLOAD ""
+ #endif
+-#ifdef CONFIG_MODVERSIONS
++/*
++ * W527: vendor modules were built against 4.14.98 with MODVERSIONS on, so
++ * their vermagic carries the "modversions" tag.  We build with MODVERSIONS
++ * off to skip CRC checks against drifted stable ABI, but same_magic()
++ * degrades to plain strcmp then -- keep emitting the tag so closed-source
++ * modules pass the vermagic check.
++ */
+ #define MODULE_VERMAGIC_MODVERSIONS "modversions "
+-#else
+-#define MODULE_VERMAGIC_MODVERSIONS ""
+-#endif
+ #ifndef MODULE_ARCH_VERMAGIC
+ #define MODULE_ARCH_VERMAGIC ""
+ #endif
 diff --git a/include/linux/vga_switcheroo.h b/include/linux/vga_switcheroo.h
 index 960bedbde..77f0f0af3 100644
 --- a/include/linux/vga_switcheroo.h
