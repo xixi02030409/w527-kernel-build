@@ -520231,3 +520231,27 @@ index 4f35f0dfe..7c4de635f 100644
 +
 +	return init_context.err;
 +}
+--- a/kernel/module.c
++++ b/kernel/module.c
+@@ -976,6 +976,21 @@
+ 		goto out;
+ 	}
+ 
++	/*
++	 * [r28 guard] Vendor prebuilt sprdwl_ng has a use-after-free in its
++	 * deinit path (sprdwl_del_iface -> __call_rcu on a garbage pointer,
++	 * Oops 96000044 -> panic). The wifi HAL rmmods this module during its
++	 * retry loop on every boot, detonating the bomb deterministically at
++	 * ~63s. Refuse the unload: the HAL gets a clean -EBUSY, no panic,
++	 * device stays alive. Real fix belongs to the vendor driver.
++	 */
++	if (!strcmp(mod->name, "sprdwl_ng")) {
++		pr_info("delete_module: refuse unloading %s (vendor deinit UAF panic guard)\n",
++			mod->name);
++		ret = -EBUSY;
++		goto out;
++	}
++
+ 	if (!list_empty(&mod->source_list)) {
+ 		/* Other modules depend on us: get rid of them first. */
+ 		ret = -EWOULDBLOCK;
