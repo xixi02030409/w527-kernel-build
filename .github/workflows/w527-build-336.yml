@@ -139,27 +139,24 @@ jobs:
           grep -n "sprd_map/" drivers/misc/Makefile
           grep -n "SPRD_SYSTIMER" drivers/soc/sprd/Makefile drivers/soc/sprd/Kconfig
 
-      - name: Overlay run#33 (factory old-SDK hynitron FULL port)
+      - name: Overlay run#33 (factory old-SDK hynitron FULL port + r31 touch rework)
         run: |
           rm -rf source/drivers/input/touchscreen/hynitron
-          tar -xzf drivers_overlay_run27.tar.gz -C source
+          tar -xzf drivers_overlay_r31.tar.gz -C source
           sed -i 's/^CONFIG_TOUCHSCREEN_HYNITRON_TS=.*/CONFIG_TOUCHSCREEN_HYNITRON_TS=y/' w527.config
           sed -i 's/^CONFIG_TOUCHSCREEN_CST9217=.*/CONFIG_TOUCHSCREEN_CST9217=n/' w527.config
           grep -q '^CONFIG_TOUCHSCREEN_HYNITRON_TS=y' w527.config || printf 'CONFIG_TOUCHSCREEN_HYNITRON_TS=y\n' >> w527.config
           grep -q '^CONFIG_TOUCHSCREEN_CST9217=n' w527.config || printf 'CONFIG_TOUCHSCREEN_CST9217=n\n' >> w527.config
-          sed -i '/HIGH_SPEED_IIC_TRANSFER/d' source/drivers/input/touchscreen/hynitron/Makefile
-          sed -i 's/msg\.flags |= I2C_M_RD;/msg.flags = I2C_M_RD;/' source/drivers/input/touchscreen/hynitron/hynitron_i2c.c
-          sed -i 's/msgs\[1\]\.flags |= I2C_M_RD;/msgs[1].flags = I2C_M_RD;/' source/drivers/input/touchscreen/hynitron/hynitron_i2c.c
-          # r30: touch report path fix - kill per-op printks (console=ttyS1@115200 = ~4ms stall/line)
-          sed -i '/cst3xx_i2c_write ret/d' source/drivers/input/touchscreen/hynitron/hynitron_i2c.c
-          sed -i '/cst3xx_i2c_read_register ret/d' source/drivers/input/touchscreen/hynitron/hynitron_i2c.c
-          sed -i 's/^obj-\$(CONFIG_TOUCHSCREEN_HYNITRON_TS)/ccflags-y += -DHIGH_SPEED_IIC_TRANSFER\nobj-$(CONFIG_TOUCHSCREEN_HYNITRON_TS)/' source/drivers/input/touchscreen/hynitron/Makefile
           echo "=== config verify ==="
           grep -n "TOUCHSCREEN_HYNITRON_TS\|TOUCHSCREEN_CST9217" w527.config
           find source/drivers/input/touchscreen/hynitron -type f | wc -l
-          echo "=== r30 touch fix verify ==="
-          grep -c "cst3xx_i2c_write ret" source/drivers/input/touchscreen/hynitron/hynitron_i2c.c || echo "printk removed OK"
+          echo "=== r31 touch rework verify (baked into tar) ==="
+          grep -c "hyn_eint_wake_handler" source/drivers/input/touchscreen/hynitron/hynitron_core.c
+          grep -n "r31 EIC wake irq=" source/drivers/input/touchscreen/hynitron/hynitron_core.c
+          grep -n "0x09;" source/drivers/input/touchscreen/hynitron/hynitron_core.c | head -2
           grep -n "HIGH_SPEED" source/drivers/input/touchscreen/hynitron/Makefile
+          (grep -c "cst3xx_i2c_write ret" source/drivers/input/touchscreen/hynitron/hynitron_i2c.c || echo "printk removed OK")
+          grep -n "Hynitron Touch Wake Int" source/drivers/input/touchscreen/hynitron/hynitron_core.c
 
       - name: Apply W527 real device config and vermagic alignment
         run: |
