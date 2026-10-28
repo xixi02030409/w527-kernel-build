@@ -139,24 +139,23 @@ jobs:
           grep -n "sprd_map/" drivers/misc/Makefile
           grep -n "SPRD_SYSTIMER" drivers/soc/sprd/Makefile drivers/soc/sprd/Kconfig
 
-      - name: Overlay run#33 (factory old-SDK hynitron FULL port + r31 touch rework)
+      - name: Overlay r32 (Hynitron V2.23 20251104 unified driver FULL REPLACEMENT)
         run: |
           rm -rf source/drivers/input/touchscreen/hynitron
-          tar -xzf drivers_overlay_r31.tar.gz -C source
+          tar -xzf drivers_overlay_r32.tar.gz -C source
           sed -i 's/^CONFIG_TOUCHSCREEN_HYNITRON_TS=.*/CONFIG_TOUCHSCREEN_HYNITRON_TS=y/' w527.config
           sed -i 's/^CONFIG_TOUCHSCREEN_CST9217=.*/CONFIG_TOUCHSCREEN_CST9217=n/' w527.config
           grep -q '^CONFIG_TOUCHSCREEN_HYNITRON_TS=y' w527.config || printf 'CONFIG_TOUCHSCREEN_HYNITRON_TS=y\n' >> w527.config
           grep -q '^CONFIG_TOUCHSCREEN_CST9217=n' w527.config || printf 'CONFIG_TOUCHSCREEN_CST9217=n\n' >> w527.config
           echo "=== config verify ==="
           grep -n "TOUCHSCREEN_HYNITRON_TS\|TOUCHSCREEN_CST9217" w527.config
+          echo "=== r32 V2.23 driver verify ==="
           find source/drivers/input/touchscreen/hynitron -type f | wc -l
-          echo "=== r31 touch rework verify (baked into tar) ==="
-          grep -c "hyn_eint_wake_handler" source/drivers/input/touchscreen/hynitron/hynitron_core.c
-          grep -n "r31 EIC wake irq=" source/drivers/input/touchscreen/hynitron/hynitron_core.c
-          grep -n "0x09;" source/drivers/input/touchscreen/hynitron/hynitron_core.c | head -2
-          grep -n "HIGH_SPEED" source/drivers/input/touchscreen/hynitron/Makefile
-          (grep -c "cst3xx_i2c_write ret" source/drivers/input/touchscreen/hynitron/hynitron_i2c.c || echo "printk removed OK")
-          grep -n "Hynitron Touch Wake Int" source/drivers/input/touchscreen/hynitron/hynitron_core.c
+          grep -n "Hynitron V2.23" source/drivers/input/touchscreen/hynitron/hyn_cfg.h
+          grep -n "hyn,92xx" source/drivers/input/touchscreen/hynitron/hyn_core.c
+          grep -c "HYN_ENTER()              printk" source/drivers/input/touchscreen/hynitron/hyn_core.h || echo "HYN_ENTER silenced OK"
+          grep -rn "old-SDK hynitron_core\|hynitron_i2c.c" source/drivers/input/touchscreen/hynitron/Makefile || echo "old driver gone OK"
+          cat source/drivers/input/touchscreen/hynitron/Makefile
 
       - name: Apply W527 real device config and vermagic alignment
         run: |
