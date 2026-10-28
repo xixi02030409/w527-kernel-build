@@ -36,6 +36,11 @@ jobs:
           grep -c "sprd_update_cpu_usage" arch/arm64/kernel/process.c
           grep -c "check_panic_on_warn" kernel/panic.c
           grep -c "GPIO_PMIC_EIC_SPRD" drivers/gpio/Kconfig
+          echo "=== r33 genl fix: restore mcast_bind/unbind (ko 120B layout) ==="
+          tar -xzf ../genetlink_fix_r33.tar.gz -C source
+          T=$(grep -c "mcast_bind" source/include/net/genetlink.h); F=$(grep -c "cap_sys_admin:1" source/include/net/genetlink.h)
+          if [ "$T" != "2" ] || [ "$F" != "1" ]; then echo "GENL FIX VERIFY FAILED: bind=$T cas=$F"; exit 1; fi
+          echo "genl fix verified: mcast_bind lines=$T cap_sys_admin:1 lines=$F"
 
       - name: Install aarch64 cross toolchain (GCC 11, 4.14.336 requires GCC>=5.1)
         run: |
