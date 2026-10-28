@@ -37,8 +37,8 @@ jobs:
           grep -c "check_panic_on_warn" kernel/panic.c
           grep -c "GPIO_PMIC_EIC_SPRD" drivers/gpio/Kconfig
           echo "=== r33 genl fix: restore mcast_bind/unbind (ko 120B layout) ==="
-          tar -xzf ../genetlink_fix_r33.tar.gz -C source
-          T=$(grep -c "mcast_bind" source/include/net/genetlink.h); F=$(grep -c "cap_sys_admin:1" source/include/net/genetlink.h)
+          tar -xzf ../genetlink_fix_r33.tar.gz -C .
+          T=$(grep -c "mcast_bind" include/net/genetlink.h); F=$(grep -c "cap_sys_admin:1" include/net/genetlink.h)
           if [ "$T" != "2" ] || [ "$F" != "1" ]; then echo "GENL FIX VERIFY FAILED: bind=$T cas=$F"; exit 1; fi
           echo "genl fix verified: mcast_bind lines=$T cap_sys_admin:1 lines=$F"
 
