@@ -520233,7 +520233,18 @@ index 4f35f0dfe..7c4de635f 100644
 +}
 --- a/net/netlink/genetlink.c
 +++ b/net/netlink/genetlink.c
-@@ -290,9 +290,21 @@
+@@ -112,6 +112,10 @@
+ {
+ 	int i;
+ 
++	/* [r29 guard] vendor npi family carries n_ops with NULL ops */
++	if (!family->ops)
++		return NULL;
++
+ 	for (i = 0; i < family->n_ops; i++)
+ 		if (family->ops[i].cmd == cmd)
+ 			return &family->ops[i];
+@@ -290,9 +294,19 @@
  	unsigned int n_ops = family->n_ops;
  	int i, j;
  
@@ -520245,14 +520256,12 @@ index 4f35f0dfe..7c4de635f 100644
 +	 * n_ops != 0 but ops == NULL. The stock kernel tolerated this, but
 +	 * upstream validation rejects it with -EINVAL, which breaks the
 +	 * userspace private channel: the wifi HAL's DFS setup then fails,
-+	 * framework tears down, and the HAL death-loops. Zero out n_ops so
-+	 * the family registers (notification-only, no command dispatch) and
-+	 * the HAL keeps working.
++	 * framework tears down, and the HAL death-loops. Tolerate here;
++	 * genl_get_cmd() guards the NULL ops for command dispatch.
 +	 */
 +	if (n_ops && !ops) {
-+		pr_warn("genetlink: family '%s': n_ops=%u with NULL ops, forcing n_ops=0 (r29 guard)\n",
++		pr_warn("genetlink: family '%s': n_ops=%u with NULL ops, tolerated (r29 guard)\n",
 +			family->name, n_ops);
-+		family->n_ops = 0;
 +		return 0;
 +	}
  	if (!n_ops)
