@@ -520231,27 +520231,30 @@ index 4f35f0dfe..7c4de635f 100644
 +
 +	return init_context.err;
 +}
---- a/kernel/module.c
-+++ b/kernel/module.c
-@@ -976,6 +976,21 @@
- 		goto out;
- 	}
+--- a/net/netlink/genetlink.c
++++ b/net/netlink/genetlink.c
+@@ -290,9 +290,21 @@
+ 	unsigned int n_ops = family->n_ops;
+ 	int i, j;
  
+-	if (WARN_ON(n_ops && !ops))
+-		return -EINVAL;
+-
 +	/*
-+	 * [r28 guard] Vendor prebuilt sprdwl_ng has a use-after-free in its
-+	 * deinit path (sprdwl_del_iface -> __call_rcu on a garbage pointer,
-+	 * Oops 96000044 -> panic). The wifi HAL rmmods this module during its
-+	 * retry loop on every boot, detonating the bomb deterministically at
-+	 * ~63s. Refuse the unload: the HAL gets a clean -EBUSY, no panic,
-+	 * device stays alive. Real fix belongs to the vendor driver.
++	 * [r29 guard] Vendor sprdwl_ng registers its npi genl family with
++	 * n_ops != 0 but ops == NULL. The stock kernel tolerated this, but
++	 * upstream validation rejects it with -EINVAL, which breaks the
++	 * userspace private channel: the wifi HAL's DFS setup then fails,
++	 * framework tears down, and the HAL death-loops. Zero out n_ops so
++	 * the family registers (notification-only, no command dispatch) and
++	 * the HAL keeps working.
 +	 */
-+	if (!strcmp(mod->name, "sprdwl_ng")) {
-+		pr_info("delete_module: refuse unloading %s (vendor deinit UAF panic guard)\n",
-+			mod->name);
-+		ret = -EBUSY;
-+		goto out;
++	if (n_ops && !ops) {
++		pr_warn("genetlink: family '%s': n_ops=%u with NULL ops, forcing n_ops=0 (r29 guard)\n",
++			family->name, n_ops);
++		family->n_ops = 0;
++		return 0;
 +	}
-+
- 	if (!list_empty(&mod->source_list)) {
- 		/* Other modules depend on us: get rid of them first. */
- 		ret = -EWOULDBLOCK;
+ 	if (!n_ops)
+ 		return 0;
+ 
