@@ -1,0 +1,112 @@
+name: W527 gcc49 baseline (byte-diff campaign)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout this repo (config + tooling)
+        uses: actions/checkout@v4
+
+      - name: Install host dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bc bison flex libssl-dev make gcc libyaml-dev cpio xz-utils
+
+      - name: Clone upstream kernel source (ZeroDreamCat uws6152 4.14.98, branch test)
+        run: |
+          git clone --depth=1 --branch test --recurse-submodules \
+            https://github.com/ZeroDreamCat/android_uws6152_4.14.98.git source
+          cd source
+          git submodule update --init --recursive || true
+
+      - name: Toolchain with banner verification (target: 4.9.x 20150123 prerelease)
+        run: |
+          TC=$HOME/toolchains/aarch64-linux-android-4.9
+          try_jingpad() {
+            git clone --depth=1 --branch=W20.13.3 --filter=blob:none --no-checkout \
+              https://github.com/deadman96385/jingpad_android_bsp.git toolchain-tmp || return 1
+            cd toolchain-tmp
+            git sparse-checkout init --cone
+            git sparse-checkout set toolchain/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9
+            git checkout || return 1
+            mv toolchain/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9 "$TC" || return 1
+            cd ..; rm -rf toolchain-tmp; return 0
+          }
+          try_feather() {
+            curl -sL --max-time 300 https://codeload.github.com/featherW/aarch64-linux-android-gcc-4.9/zip/refs/heads/master -o tc.zip || return 1
+            unzip -q tc.zip -d tcx || return 1
+            GCCF=$(find tcx -type f -name 'aarch64-linux-android-gcc' | head -1)
+            [ -n "$GCCF" ] || return 1
+            ROOT=$(dirname "$(dirname "$GCCF")")
+            mv "$ROOT" "$TC" || return 1
+            return 0
+          }
+          try_google() {
+            curl -sL --max-time 600 "https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/+archive/refs/heads/nougat-release.tar.gz" -o tc.tgz || return 1
+            mkdir -p "$TC" && tar -xzf tc.tgz -C "$TC" || return 1
+            [ -f "$TC/bin/aarch64-linux-android-gcc" ] || return 1
+            return 0
+          }
+          try_jingpad || { rm -rf "$TC"; try_feather; } || { rm -rf "$TC"; try_google; }
+          chmod -R a+x "$TC/bin"
+          echo "$TC/bin" >> $GITHUB_PATH
+          "$TC/bin/aarch64-linux-android-gcc" --version | tee "$GITHUB_WORKSPACE/gcc_banner.txt"
+          "$TC/bin/aarch64-linux-android-gcc" --version | grep -q "4.9.x 20150123 (prerelease)" \
+            && echo "BANNER MATCH: factory toolchain string" \
+            || echo "WARN: banner differs from factory (4.9.x 20150123 prerelease)"
+
+      - name: Build-env seds (tooling only; EXTRAVERSION cleared to match factory banner)
+        run: |
+          cd source
+          sed -i 's/^EXTRAVERSION =.*/EXTRAVERSION =/' Makefile
+          sed -i '/yamltree\.o/d' scripts/dtc/Makefile
+          sed -i 's/dt_to_yaml(/\/\/ dt_to_yaml(/g' scripts/dtc/dtc.c
+          sed -i '/ifdef CONFIG_CC_STACKPROTECTOR_STRONG/{n;s/stackp-flag :=.*/stackp-flag := -fstack-protector-strong/}' Makefile
+          sed -i '/ifdef stackp-name/,/endif/{s/exit 1/true/}' Makefile
+          sed -i '/ifdef stackp-check/,/endif/{s/exit 1/true/}' Makefile
+
+      - name: Apply PURE factory config (no 336, no overlays)
+        run: |
+          cd source
+          cp ../factory_config_pure.config .config
+          export ARCH=arm64 CROSS_COMPILE=aarch64-linux-android-
+          make olddefconfig
+          cp .config "$GITHUB_WORKSPACE/final_config.txt"
+          echo "=== dropped-by-olddefconfig count ==="
+          diff ../factory_config_pure.config ../final_config.txt | grep -c '^<' || true
+
+      - name: Build Image
+        run: |
+          cd source
+          export ARCH=arm64 CROSS_COMPILE=aarch64-linux-android-
+          set -o pipefail
+          make -j$(nproc) Image KCFLAGS="-Wno-error=sizeof-pointer-memaccess -Wno-error=array-bounds -Wno-error=missing-braces -Wno-error=format" 2>&1 | tee build.log || {
+            echo "=== BUILD FAILED, extracting errors ==="
+            grep -nE "error:|Error [0-9]" build.log | head -60
+            exit 1
+          }
+          echo "=== Image OK ==="
+          od -A x -t x1 -N 64 arch/arm64/boot/Image
+          ls -la arch/arm64/boot/Image
+
+      - name: Upload release artifacts
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: gcc49-baseline-${{ github.run_id }}
+          name: gcc49 baseline ${{ github.run_id }}
+          files: |
+            source/arch/arm64/boot/Image
+            source/System.map
+            final_config.txt
+            gcc_banner.txt
+            source/build.log
+          draft: false
+          prerelease: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
