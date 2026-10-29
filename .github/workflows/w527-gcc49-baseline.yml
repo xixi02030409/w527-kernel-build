@@ -102,6 +102,26 @@ jobs:
           tar -xzf overlay_fscrypt_v2.tar.gz -C source
           cd source
           rm -f include/linux/fscrypt_notsupp.h include/linux/fscrypt_supp.h
+          python3 << 'PYEOF'
+          # fs.h supplement: struct key decl + s_master_keys member
+          # (v2 keyring.c needs them; 336 flow got these via w527_336.patch)
+          import sys
+          def patch(path, anchor, ins, tag):
+              s = open(path).read()
+              n = s.count(anchor)
+              if n != 1:
+                  print('%s: anchor matched %d times, abort' % (tag, n)); sys.exit(1)
+              open(path, 'w').write(s.replace(anchor, anchor + ins))
+              print('%s patched' % tag)
+          patch('include/linux/fs.h',
+                'struct fscrypt_info;\nstruct fscrypt_operations;',
+                '\nstruct key;',
+                'fs.h decl')
+          patch('include/linux/fs.h',
+                'const struct fscrypt_operations\t*s_cop;',
+                '\n#ifdef CONFIG_FS_ENCRYPTION\n\tstruct key\t\t*s_master_keys;\n#endif',
+                'fs.h s_master_keys')
+          PYEOF
           echo "=== fs/crypto files (v2) ==="; ls fs/crypto/
           echo "=== v1 page-API remnants (expect only fs/ubifs/crypto.c; not compiled: UBIFS_FS_ENCRYPTION off) ==="
           grep -rln "fscrypt_encrypt_page(\|fscrypt_decrypt_page(\|fscrypt_pullback_bio_page\|fscrypt_restore_control_page\|fscrypt_decrypt_bio_pages" fs/ || echo "clean"
