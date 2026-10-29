@@ -1,6 +1,8 @@
 name: W527 gcc49 baseline (byte-diff campaign)
 
 on:
+  push:
+    branches: [w527-gcc49-baseline]
   workflow_dispatch:
 
 permissions:
