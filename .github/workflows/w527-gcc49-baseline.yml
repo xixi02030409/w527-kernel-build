@@ -69,6 +69,7 @@ jobs:
           sed -i '/ifdef stackp-check/,/endif/{s/exit 1/true/}' Makefile
           # Strip KernelSU: factory kernel has none; tree Kbuild errors on Non-GKI TP hooks
           sed -i '/kernelsu/d' drivers/Makefile
+          sed -i '/kernelsu/d' drivers/Kconfig
           rm -rf drivers/kernelsu
 
       - name: Apply PURE factory config (no 336, no overlays)
