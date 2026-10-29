@@ -149,6 +149,39 @@ jobs:
           grep -n "sprd_map/" drivers/misc/Makefile
           grep -n "SPRD_SYSTIMER" drivers/soc/sprd/Makefile drivers/soc/sprd/Kconfig
 
+      - name: Overlay W527 fgu present fix (non-removable battery; bat-detect pin untrusted)
+        run: |
+          cd source
+          python3 << 'PYEOF'
+          import sys
+          def replace(path, old, new, tag):
+              s = open(path).read()
+              n = s.count(old)
+              if n != 1:
+                  print('%s: anchor matched %d times, abort' % (tag, n)); sys.exit(1)
+              open(path, 'w').write(s.replace(old, new))
+              print('%s patched' % tag)
+
+          replace('drivers/power/supply/sc27xx_fuel_gauge.c',
+                  '\tdata->bat_present = !!ret;',
+                  '\t/* W527: non-removable battery, bat-detect pin (PMIC EIC #3) reads lo\n'
+                  '\t * while factory reports present=1 -> GPIO level untrusted.\n'
+                  '\t * present=0 blocks eta6947 charging (Not charging, ICL pinned 0). */\n'
+                  '\tdev_info(&pdev->dev, "W527 bat-detect raw=%d, force present=1\n", ret);\n'
+                  '\tdata->bat_present = true;',
+                  'fgu probe present')
+          replace('drivers/power/supply/sc27xx_fuel_gauge.c',
+                  '\tdata->bat_present = !!state;',
+                  '\t/* W527: non-removable battery, see probe comment */\n'
+                  '\tdata->bat_present = true;',
+                  'fgu irq present')
+          PYEOF
+          echo "=== verify ==="
+          grep -n "bat_present = true" drivers/power/supply/sc27xx_fuel_gauge.c
+          C=$(grep -c "bat_present = !!" drivers/power/supply/sc27xx_fuel_gauge.c || true)
+          echo "raw bat_present assignments left: $C (expect 0)"
+          if [ "$C" != "0" ]; then exit 1; fi
+
       - name: Overlay r32 (Hynitron V2.23 20251104 unified driver FULL REPLACEMENT)
         run: |
           rm -rf source/drivers/input/touchscreen/hynitron
