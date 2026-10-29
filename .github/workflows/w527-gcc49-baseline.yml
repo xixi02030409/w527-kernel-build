@@ -97,6 +97,44 @@ jobs:
           sed -i '/kernelsu/d' drivers/Kconfig
           rm -rf drivers/kernelsu
 
+      - name: Overlay fscrypt v2 backport (A11 vold needs v2 ioctl on /data)
+        run: |
+          tar -xzf overlay_fscrypt_v2.tar.gz -C source
+          cd source
+          rm -f include/linux/fscrypt_notsupp.h include/linux/fscrypt_supp.h
+          echo "=== fs/crypto files (v2) ==="; ls fs/crypto/
+          echo "=== v1 page-API remnants (expect only fs/ubifs/crypto.c; not compiled: UBIFS_FS_ENCRYPTION off) ==="
+          grep -rln "fscrypt_encrypt_page(\|fscrypt_decrypt_page(\|fscrypt_pullback_bio_page\|fscrypt_restore_control_page\|fscrypt_decrypt_bio_pages" fs/ || echo "clean"
+          echo "=== glue files in place ==="
+          ls -la fs/f2fs/data.c fs/ext4/inode.c fs/ext4/page-io.c fs/ext4/readpage.c include/linux/fscrypt.h include/uapi/linux/fscrypt.h
+
+      - name: Accept inlinecrypt mount option (A11 fstab compat; software fscrypt fallback)
+        run: |
+          cd source
+          python3 << 'PYEOF'
+          import sys
+          def patch(path, anchor, tag):
+              s = open(path).read()
+              n = s.count(anchor)
+              if n != 1:
+                  print('%s: anchor matched %d times, abort' % (tag, n)); sys.exit(1)
+              ins = ('\t\t/* Accept inlinecrypt (A11 fstab compat): '
+                     'software fscrypt fallback */\n'
+                     '\t\tif (!strcmp(p, "inlinecrypt"))\n'
+                     '\t\t\tcontinue;\n')
+              open(path, 'w').write(s.replace(anchor, ins + anchor))
+              print('%s patched: inlinecrypt accepted+ignored' % tag)
+          patch('fs/f2fs/super.c',
+                '\t\targs[0].to = args[0].from = NULL;\n'
+                '\t\ttoken = match_token(p, f2fs_tokens, args);',
+                'f2fs')
+          patch('fs/ext4/super.c',
+                '\t\targs[0].to = args[0].from = NULL;\n'
+                '\t\ttoken = match_token(p, tokens, args);\n'
+                '\t\tif (handle_mount_opt(sb, p, token, args, journal_devnum,',
+                'ext4')
+          PYEOF
+
       - name: Apply PURE factory config (no 336, no overlays)
         run: |
           cd source
