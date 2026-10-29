@@ -167,7 +167,7 @@ jobs:
                   '\t/* W527: non-removable battery, bat-detect pin (PMIC EIC #3) reads lo\n'
                   '\t * while factory reports present=1 -> GPIO level untrusted.\n'
                   '\t * present=0 blocks eta6947 charging (Not charging, ICL pinned 0). */\n'
-                  '\tdev_info(&pdev->dev, "W527 bat-detect raw=%d, force present=1\n", ret);\n'
+                  '\tdev_info(&pdev->dev, "W527 bat-detect raw=%d, force present=1\\n", ret);\n'
                   '\tdata->bat_present = true;',
                   'fgu probe present')
           replace('drivers/power/supply/sc27xx_fuel_gauge.c',
