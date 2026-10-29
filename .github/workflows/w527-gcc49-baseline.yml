@@ -30,6 +30,7 @@ jobs:
       - name: "Toolchain with banner verification (target 4.9.x 20150123 prerelease)"
         run: |
           TC=$HOME/toolchains/aarch64-linux-android-4.9
+          mkdir -p "$TC"
           try_jingpad() {
             git clone --depth=1 --branch=W20.13.3 --filter=blob:none --no-checkout \
               https://github.com/deadman96385/jingpad_android_bsp.git toolchain-tmp || return 1
@@ -72,6 +73,9 @@ jobs:
           sed -i '/ifdef CONFIG_CC_STACKPROTECTOR_STRONG/{n;s/stackp-flag :=.*/stackp-flag := -fstack-protector-strong/}' Makefile
           sed -i '/ifdef stackp-name/,/endif/{s/exit 1/true/}' Makefile
           sed -i '/ifdef stackp-check/,/endif/{s/exit 1/true/}' Makefile
+          # Strip KernelSU: factory kernel has none; tree Kbuild errors on Non-GKI TP hooks
+          sed -i '/kernelsu/d' drivers/Makefile
+          rm -rf drivers/kernelsu
 
       - name: Apply PURE factory config (no 336, no overlays)
         run: |
