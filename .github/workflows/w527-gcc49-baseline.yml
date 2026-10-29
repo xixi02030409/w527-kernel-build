@@ -31,32 +31,26 @@ jobs:
         run: |
           TC=$HOME/toolchains/aarch64-linux-android-4.9
           mkdir -p "$TC"
-          try_jingpad() {
-            git clone --depth=1 --branch=W20.13.3 --filter=blob:none --no-checkout \
-              https://github.com/deadman96385/jingpad_android_bsp.git toolchain-tmp || return 1
-            cd toolchain-tmp
-            git sparse-checkout init --cone
-            git sparse-checkout set toolchain/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9
-            git checkout || return 1
-            mv toolchain/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9 "$TC" || return 1
-            cd ..; rm -rf toolchain-tmp; return 0
+          try_google() {
+            echo "[tc] trying googlesource nougat-release..."
+            curl -sL --max-time 600 "https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/+archive/refs/heads/nougat-release.tar.gz" -o tc.tgz || { echo "[tc] FAIL: google download"; return 1; }
+            tar -xzf tc.tgz -C "$TC" || { echo "[tc] FAIL: google untar"; return 1; }
+            [ -f "$TC/bin/aarch64-linux-android-gcc" ] || { echo "[tc] FAIL: google gcc missing"; return 1; }
+            echo "[tc] OK: googlesource"
+            return 0
           }
           try_feather() {
-            curl -sL --max-time 300 https://codeload.github.com/featherW/aarch64-linux-android-gcc-4.9/zip/refs/heads/master -o tc.zip || return 1
-            unzip -q tc.zip -d tcx || return 1
+            echo "[tc] trying featherW mirror..."
+            curl -sL --max-time 300 https://codeload.github.com/featherW/aarch64-linux-android-gcc-4.9/zip/refs/heads/master -o tc.zip || { echo "[tc] FAIL: feather download"; return 1; }
+            unzip -q tc.zip -d tcx || { echo "[tc] FAIL: feather unzip"; return 1; }
             GCCF=$(find tcx -type f -name 'aarch64-linux-android-gcc' | head -1)
-            [ -n "$GCCF" ] || return 1
+            [ -n "$GCCF" ] || { echo "[tc] FAIL: feather gcc missing"; return 1; }
             ROOT=$(dirname "$(dirname "$GCCF")")
-            mv "$ROOT" "$TC" || return 1
+            mv "$ROOT"/* "$TC"/ || { echo "[tc] FAIL: feather mv"; return 1; }
+            echo "[tc] OK: featherW"
             return 0
           }
-          try_google() {
-            curl -sL --max-time 600 "https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/+archive/refs/heads/nougat-release.tar.gz" -o tc.tgz || return 1
-            mkdir -p "$TC" && tar -xzf tc.tgz -C "$TC" || return 1
-            [ -f "$TC/bin/aarch64-linux-android-gcc" ] || return 1
-            return 0
-          }
-          try_jingpad || { rm -rf "$TC"; try_feather; } || { rm -rf "$TC"; try_google; }
+          try_google || try_feather || { echo "[tc] ALL SOURCES FAILED"; ls -la "$TC" || true; exit 1; }
           chmod -R a+x "$TC/bin"
           echo "$TC/bin" >> $GITHUB_PATH
           "$TC/bin/aarch64-linux-android-gcc" --version | tee "$GITHUB_WORKSPACE/gcc_banner.txt"
