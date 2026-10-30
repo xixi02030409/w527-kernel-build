@@ -212,6 +212,19 @@ jobs:
           echo "=== key config after olddefconfig ==="
           grep -E "CONFIG_TOUCHSCREEN_HYNITRON_TS|CONFIG_CHARGER_ETA6947|CONFIG_INPUT_AS1509|CONFIG_SENSORS_QMC6308|CONFIG_INPUT_MIR3DA|CONFIG_MODVERSIONS|CONFIG_SPRD_POWER" ../final_config.txt
 
+      - name: Pre-build single-file V=1 diagnostic (sdiohal_main.c incomplete type mystery)
+        run: |
+          cd source
+          export ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu-
+          echo "=== md5 baseline check (wcn_bus.h expect def4a85269a6dfbdd8520d9189f49bb6) ==="
+          md5sum include/misc/wcn_bus.h drivers/misc/sprdwcn/sleep/slp_mgr.h include/misc/marlin_platform.h
+          echo "=== wcn_bus.h 55-75 (struct sdio_puh_t must be here) ==="
+          sed -n '55,75p' include/misc/wcn_bus.h
+          echo "=== marlin_platform.h 20-36 (fix6 insert effect) ==="
+          sed -n '20,36p' include/misc/marlin_platform.h
+          echo "=== single-file V=1 build (full gcc cmdline + errors, fast) ==="
+          make drivers/misc/sprdwcn/sdio/sdiohal_main.o V=1 2>&1 | tail -50 || true
+
       - name: Build kernel + modules
         run: |
           cd source
