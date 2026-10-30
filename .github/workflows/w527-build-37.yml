@@ -173,6 +173,12 @@ jobs:
           tar -xzf drivers_overlay.tar.gz -C source
           cd source
           python3 port_drivers.py .
+          # r34-era overlay carries test-tree versions of two a9.0 files; a9.0
+          # sprdwcn stack needs its native wcn_bus.h (struct sdio_puh_t) and
+          # native pcie_attach_bus.c - restore them after the overlay
+          git checkout -- include/misc/wcn_bus.h drivers/misc/sprdwcn/pcie/pcie_attach_bus.c
+          echo "=== restored native wcn_bus.h (expect def4a85269a6dfbdd8520d9189f49bb6) ==="
+          md5sum include/misc/wcn_bus.h drivers/misc/sprdwcn/pcie/pcie_attach_bus.c
           grep -n "qmc,qmc6308\|da,da217" drivers/input/misc/qmc6308/qmc6308.c drivers/input/misc/mir3da/mir3da_cust.c
 
       - name: Apply factory config + r37 additions, olddefconfig
