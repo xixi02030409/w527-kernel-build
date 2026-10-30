@@ -58,9 +58,9 @@ jobs:
               print('fs.h patched: s_master_keys added')
           x = 'crypto/xts.c'
           s = open(x).read()
-          s2 = s.replace('static void free(', 'static void xts_free(')
-          s2 = s2.replace('.free = free,', '.free = xts_free,')
-          s2 = s2.replace('.free = free }', '.free = xts_free }')
+          import re
+          s2 = re.sub(r'\bstatic void free\(', 'static void xts_free(', s)
+          s2 = re.sub(r'(\.free\s*=\s*)free\b', r'\1xts_free', s2)
           if s2 != s:
               open(x, 'w').write(s2)
               print('xts.c renamed free -> xts_free')
