@@ -182,6 +182,15 @@ jobs:
           echo "raw bat_present assignments left: $C (expect 0)"
           if [ "$C" != "0" ]; then exit 1; fi
 
+      - name: Overlay W527 as1509 crown driver (factory-spec rewrite, r36)
+        run: |
+          tar -xzf as1509_overlay.tar.gz -C source
+          cd source
+          python3 port_as1509.py .
+          echo "=== as1509 verify ==="
+          grep -n "as,as1509_i2c" drivers/input/misc/as1509_i2c.c
+          grep -n "INPUT_AS1509" drivers/input/misc/Kconfig drivers/input/misc/Makefile
+
       - name: Overlay r32 (Hynitron V2.23 20251104 unified driver FULL REPLACEMENT)
         run: |
           rm -rf source/drivers/input/touchscreen/hynitron
