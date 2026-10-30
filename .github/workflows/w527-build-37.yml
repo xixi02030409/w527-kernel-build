@@ -38,6 +38,36 @@ jobs:
           rm -f include/linux/fscrypt_notsupp.h include/linux/fscrypt_supp.h
           echo "=== fs/crypto files ==="; ls fs/crypto/ | head -5
 
+      - name: Fix fs.h s_master_keys and xts.c builtin clash (gcc11 vs stock 4.14)
+        run: |
+          cd source
+          python3 << 'PYEOF'
+          import sys
+          p = 'include/linux/fs.h'
+          s = open(p).read()
+          if 's_master_keys' in s:
+              print('fs.h already has s_master_keys')
+          else:
+              anchor = 'struct super_block {'
+              n = s.count(anchor)
+              if n != 1:
+                  print('fs.h anchor matched %d times, abort' % n); sys.exit(1)
+              ins = anchor + ('\n\t/* fscrypt v2 backport: master key ring '
+                              '(fs/crypto/keyring.c) */\n\tvoid\t\t*s_master_keys;')
+              open(p, 'w').write(s.replace(anchor, ins))
+              print('fs.h patched: s_master_keys added')
+          x = 'crypto/xts.c'
+          s = open(x).read()
+          s2 = s.replace('static void free(', 'static void xts_free(')
+          s2 = s2.replace('.free = free,', '.free = xts_free,')
+          s2 = s2.replace('.free = free }', '.free = xts_free }')
+          if s2 != s:
+              open(x, 'w').write(s2)
+              print('xts.c renamed free -> xts_free')
+          else:
+              print('xts.c no clash pattern, left as is')
+          PYEOF
+
       - name: Accept inlinecrypt mount option (A11 fstab compat)
         run: |
           cd source
