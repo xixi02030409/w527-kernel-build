@@ -77,6 +77,15 @@ jobs:
               print('sprd_dfs_trace.h TRACE_INCLUDE_PATH fixed -> drivers/devfreq/sprd')
           else:
               print('sprd_dfs_trace.h already OK')
+          # companion fix (test branch has it, android-9.0 branch lacks it):
+          # without -I$(srctree) the <drivers/devfreq/sprd/...> lookup has no search path
+          m = 'drivers/devfreq/sprd/Makefile'
+          s = open(m).read()
+          if 'ccflags-y' not in s:
+              open(m, 'a').write('ccflags-y += -I$(srctree)\n')
+              print('sprd Makefile: ccflags-y += -I$(srctree) appended')
+          else:
+              print('sprd Makefile ccflags already present')
           PYEOF
 
       - name: Accept inlinecrypt mount option (A11 fstab compat)
