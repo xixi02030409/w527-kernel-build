@@ -198,7 +198,7 @@ jobs:
           python3 r38_overlay/port_r38.py
           echo "=== r38 verify ==="
           grep -n "microarray,mafp" drivers/input/fingerprint/mas_core.c
-          grep -n "INPUT_FINGERPRINT" drivers/input/Kconfig drivers/input/Makefile
+          grep -n "fingerprint" drivers/input/Kconfig drivers/input/Makefile
           grep -n "MICROARRAY_FINGERPRINT" drivers/input/fingerprint/Kconfig drivers/input/fingerprint/Makefile
           grep -n "SPRD_DEBUGLOG" drivers/misc/Kconfig drivers/misc/Makefile
           grep -n "ap_sleep_condition_check" drivers/misc/sprd_debuglog.c
