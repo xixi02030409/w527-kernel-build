@@ -1,4 +1,4 @@
-name: W527 kernel r37 (factory-replica, xintaiqi tree)
+name: W527 kernel r37d (xintaiqi tree + r34 w527.config bisect)
 
 on:
   workflow_dispatch:
@@ -146,7 +146,7 @@ jobs:
         run: |
           cd source
           sed -i 's/^EXTRAVERSION =.*/EXTRAVERSION =/' Makefile
-          cp ../factory98.config .config
+          cp ../w527.config .config
           cat >> .config << 'EOF'
           CONFIG_TOUCHSCREEN_HYNITRON_TS=y
           CONFIG_CHARGER_ETA6947=y
