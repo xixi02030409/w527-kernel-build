@@ -1,4 +1,4 @@
-name: W527 kernel r37d (xintaiqi tree + r34 w527.config bisect)
+name: W527 kernel r37e (r37d minus r37_overlay)
 
 on:
   workflow_dispatch:
@@ -115,12 +115,7 @@ jobs:
                 'ext4')
           PYEOF
 
-      - name: Overlay r37 core (module.c force-load + fgu present fix + eta6947 charger)
-        run: |
-          tar -xzf r37_overlay.tar.gz -C source
-          cd source
-          python3 port_r37.py .
-
+      # r37e bisect: r37_overlay removed (module.c force-load / fgu / eta6947)
       - name: Overlay as1509 crown driver (factory-spec rewrite)
         run: |
           tar -xzf as1509_overlay.tar.gz -C source
