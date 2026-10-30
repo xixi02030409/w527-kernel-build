@@ -66,6 +66,17 @@ jobs:
               print('xts.c renamed free -> xts_free')
           else:
               print('xts.c no clash pattern, left as is')
+          # sprd_dfs_trace.h: android-9.0 branch has TRACE_INCLUDE_PATH=. (gcc11 cannot
+          # resolve ./ relative to -I$(srctree)); test branch fixed it to drivers/devfreq/sprd
+          t = 'drivers/devfreq/sprd/sprd_dfs_trace.h'
+          s = open(t).read()
+          s2 = s.replace('#define TRACE_INCLUDE_PATH .',
+                         '#define TRACE_INCLUDE_PATH drivers/devfreq/sprd')
+          if s2 != s:
+              open(t, 'w').write(s2)
+              print('sprd_dfs_trace.h TRACE_INCLUDE_PATH fixed -> drivers/devfreq/sprd')
+          else:
+              print('sprd_dfs_trace.h already OK')
           PYEOF
 
       - name: Accept inlinecrypt mount option (A11 fstab compat)
