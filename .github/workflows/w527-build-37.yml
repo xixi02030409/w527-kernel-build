@@ -88,45 +88,6 @@ jobs:
               print('sprd Makefile ccflags already present')
           PYEOF
 
-      - name: Fix sprdwcn duplicate enums (gcc8+ redeclaration is error, test branch rebuilt files but we keep a9.0 behavior)
-        run: |
-          cd source
-          python3 << 'PYEOF'
-          import re
-          # 1) include/misc/marlin_platform.h: drop duplicate enum marlin_sub_sys
-          #    (wcn_bus.h already defines the same members as enum wcn_sub_sys),
-          #    then bridge the old type name via macro so .c files need no edits.
-          p = 'include/misc/marlin_platform.h'
-          s = open(p).read()
-          if 'enum marlin_sub_sys' in s:
-              s2 = re.sub(r'enum marlin_sub_sys\s*\{[^}]*\};\n?', '', s, count=1)
-              anchor = '#include <linux/types.h>'
-              if anchor in s2:
-                  s2 = s2.replace(anchor, anchor +
-                      '\n#include <misc/wcn_bus.h>\n'
-                      '/* gcc8+: enum member names MARLIN_* already declared in wcn_bus.h;\n'
-                      ' * keep the old type tag alive for .c files via macro bridge */\n'
-                      '#ifndef marlin_sub_sys\n'
-                      '#define marlin_sub_sys wcn_sub_sys\n'
-                      '#endif', 1)
-              open(p, 'w').write(s2)
-              print('marlin_platform.h: duplicate enum removed + wcn_bus.h include + macro bridge')
-          else:
-              print('marlin_platform.h: already clean')
-          # 2) drivers/misc/sprdwcn/sleep/slp_mgr.h: drop duplicate enum slp_subsys
-          p = 'drivers/misc/sprdwcn/sleep/slp_mgr.h'
-          s = open(p).read()
-          if 'enum slp_subsys {' in s:
-              s2 = re.sub(r'enum slp_subsys\s*\{[^}]*\};\n?', '', s, count=1)
-              anchor = '#include <misc/marlin_platform.h>'
-              if anchor in s2 and '#include <misc/wcn_bus.h>' not in s2:
-                  s2 = s2.replace(anchor, anchor + '\n#include <misc/wcn_bus.h>', 1)
-              open(p, 'w').write(s2)
-              print('slp_mgr.h: duplicate enum slp_subsys removed')
-          else:
-              print('slp_mgr.h: already clean')
-          PYEOF
-
       - name: Accept inlinecrypt mount option (A11 fstab compat)
         run: |
           cd source
