@@ -225,15 +225,17 @@ jobs:
 
       - name: Overlay r44 (bd1860 full driver, factory 1:1)
         run: |
-          tar -xzf r44_overlay.tar.gz -C source
+          mkdir -p source/r44_overlay
+          tar -xzf r44_overlay.tar.gz -C source/r44_overlay
           cd source
           python3 r44_overlay/port_r44.py
           echo "=== r44 verify ==="
-          grep -n "bd_data_read_mode2" drivers/misc/bd1860/bd1860.c
+          grep -n "BD_health_pro" drivers/misc/bd1860/bd1860.c
+          grep -c "BD_Sensor_Data_Read\|BD_I2C_Read" drivers/misc/bd1860/bd1860_alg.c
           grep -n "bd,bd1860" drivers/misc/bd1860/bd1860.c
           grep -n "CONFIG_BD1860=y" ../w527.config
           if ls drivers/misc/bd1860/bd1860_probe.c 2>/dev/null; then echo "ERROR: r42 stub still present"; exit 1; fi
-          echo "r44: bd1860 full driver OK"
+          echo "r44: bd1860 decompiled algorithm driver OK"
 
       - name: Overlay r32 (Hynitron V2.23 20251104 unified driver FULL REPLACEMENT)
         run: |
