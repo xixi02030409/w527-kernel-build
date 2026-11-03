@@ -62,17 +62,22 @@ jobs:
           sed -i 's|#define TRACE_INCLUDE_PATH \.|#define TRACE_INCLUDE_PATH drivers/devfreq/sprd|' drivers/devfreq/sprd/sprd_dfs_trace.h
           grep -q "ccflags-y" drivers/devfreq/sprd/Makefile || echo 'ccflags-y += -I$(srctree)' >> drivers/devfreq/sprd/Makefile
 
-          # ===== 配置（as-received 基线 defconfig，零改动原则） =====
-          make sprd_sharkl5_defconfig
-          scripts/config --disable CONFIG_APPENDED_DTB
-          scripts/config --disable CONFIG_EFI
-          scripts/config --disable CONFIG_EFI_STUB
+          # ===== 配置：factory IKCONFIG 展开（1376 条，忠实对齐实机配置） =====
+          # factory 内核内嵌 IKCONFIG 提取自 factory_kernel_divo_0613.bin；
+          # 树里不存在的符号（SPRD_POWER/BLK_INLINE_ENCRYPTION/SPRD_SYSTIMER/ETA6947）被 olddefconfig 静默丢弃 = 安全网；
+          # TOUCHSCREEN_HYNITRON_TS 需显式叠加（factory 里 hyn_ts 驱动是 obj-y 直编，IKCONFIG 无此符号）
+          curl -sL -o factory_config.txt "https://raw.githubusercontent.com/xixi02030409/w527-kernel-build/rebuild-baseline/factory_config.txt"
+          echo "factory CONFIG count: $(grep -c '^CONFIG_' factory_config.txt)"
+          cp factory_config.txt .config
+          echo "CONFIG_TOUCHSCREEN_HYNITRON_TS=y" >> .config
           sed -i '/yamltree\.o/d' scripts/dtc/Makefile
           sed -i 's/dt_to_yaml(/\/\/ dt_to_yaml(/g' scripts/dtc/dtc.c
           sed -i '/ifdef CONFIG_CC_STACKPROTECTOR_STRONG/{n;s/stackp-flag :=.*/stackp-flag := -fstack-protector-strong/}' Makefile
           sed -i '/ifdef stackp-name/,/endif/{s/exit 1/true/}' Makefile
           sed -i '/ifdef stackp-check/,/endif/{s/exit 1/true/}' Makefile
           make olddefconfig
+          echo "=== effective config diff vs factory (should be near-zero) ==="
+          cp .config final_config.txt
           KCFLAGS="-Wno-error=sizeof-pointer-memaccess -Wno-error=array-bounds -Wno-error=missing-braces -Wno-error=format"
           make -j$(nproc) KCFLAGS="$KCFLAGS" 2>&1 | tee build.log
 
@@ -131,6 +136,8 @@ jobs:
           cp ${{ steps.find_kernel.outputs.kernel_path }} artifacts/
           cp source/System.map artifacts/ 2>/dev/null || true
           cp source/build.log artifacts/ 2>/dev/null || true
+          cp source/final_config.txt artifacts/ 2>/dev/null || true
+          cp source/factory_config.txt artifacts/ 2>/dev/null || true
           cp modules.tar.gz artifacts/ 2>/dev/null || true
           # debug info for offline symbol analysis
           cp source/vmlinux artifacts/ 2>/dev/null || true
@@ -156,7 +163,7 @@ jobs:
           CHAT_ID: ${{ secrets.TELEGRAM_TO }}
         run: |
           if [ "${{ job.status }}" = "success" ]; then
-            MSG="REBUILD-BASELINE OK (run ${{ github.run_id }}): pristine xintaiqi BSP built with gcc4.9, sprd_sharkl5_defconfig"
+            MSG="REBUILD-BASELINE OK (run ${{ github.run_id }}): pristine xintaiqi BSP + gcc4.9 + factory IKCONFIG config"
           else
             MSG="REBUILD-BASELINE FAILED (run ${{ github.run_id }})"
           fi
