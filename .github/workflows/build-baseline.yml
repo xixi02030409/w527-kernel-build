@@ -62,10 +62,11 @@ jobs:
           sed -i 's|#define TRACE_INCLUDE_PATH \.|#define TRACE_INCLUDE_PATH drivers/devfreq/sprd|' drivers/devfreq/sprd/sprd_dfs_trace.h
           grep -q "ccflags-y" drivers/devfreq/sprd/Makefile || echo 'ccflags-y += -I$(srctree)' >> drivers/devfreq/sprd/Makefile
 
-          # ===== hynitron 触摸：叠 r55 实机验证版（hyn,92xx compatible 匹配 factory DTS hynitron@1a） =====
-          curl -sL -o drivers/input/touchscreen/hynitron/hynitron_core.c "https://raw.githubusercontent.com/xixi02030409/w527-kernel-build/rebuild-baseline/hynitron_core.c"
-          curl -sL -o drivers/input/touchscreen/hynitron/hynitron_config.h "https://raw.githubusercontent.com/xixi02030409/w527-kernel-build/rebuild-baseline/hynitron_config.h"
-          grep -c 'hyn,92xx' drivers/input/touchscreen/hynitron/hynitron_core.c
+          # ===== r56 平台叠加包：iommu/drm/regulator/power/input/clk（r55 实机验证版，含 hynitron 修复与 as1509 接线） =====
+          curl -sL -o overlay_r56_platform.tar.gz "https://raw.githubusercontent.com/xixi02030409/w527-kernel-build/rebuild-baseline/overlay_r56_platform.tar.gz"
+          tar -xzf overlay_r56_platform.tar.gz -C source/
+          grep -c 'hyn,92xx' source/drivers/input/touchscreen/hynitron/hynitron_core.c
+          grep -c 'as1509' source/drivers/input/misc/Makefile
 
           # ===== 配置：factory IKCONFIG 展开（1376 条，忠实对齐实机配置） =====
           # factory 内核内嵌 IKCONFIG 提取自 factory_kernel_divo_0613.bin；
@@ -74,7 +75,12 @@ jobs:
           curl -sL -o factory_config.txt "https://raw.githubusercontent.com/xixi02030409/w527-kernel-build/rebuild-baseline/factory_config.txt"
           echo "factory CONFIG count: $(grep -c '^CONFIG_' factory_config.txt)"
           cp factory_config.txt .config
+          # 私有驱动符号：factory 里 obj-y 直编不在 IKCONFIG，需显式叠加
           echo "CONFIG_TOUCHSCREEN_HYNITRON_TS=y" >> .config
+          echo "CONFIG_DA280=y" >> .config
+          echo "CONFIG_SENSORS_OCH1970=y" >> .config
+          echo "CONFIG_CHARGER_ETA6947=y" >> .config
+          echo "CONFIG_SENSORS_AS1509=y" >> .config
           sed -i '/yamltree\.o/d' scripts/dtc/Makefile
           sed -i 's/dt_to_yaml(/\/\/ dt_to_yaml(/g' scripts/dtc/dtc.c
           sed -i '/ifdef CONFIG_CC_STACKPROTECTOR_STRONG/{n;s/stackp-flag :=.*/stackp-flag := -fstack-protector-strong/}' Makefile
