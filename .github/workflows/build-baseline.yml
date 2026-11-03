@@ -1,0 +1,157 @@
+name: Rebuild Baseline Kernel (pristine xintaiqi BSP, gcc4.9)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Clone pristine baseline from upstream
+        run: |
+          git clone --branch android-9.0 --depth=1 \
+            https://github.com/atlas4381/android_kernel_xintaiqi_uws6152_1h10_test.git source
+          cd source
+          echo "=== baseline head ==="
+          git log -1 --oneline
+          echo "=== kernel version ==="
+          head -5 Makefile
+
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y git make bc bison flex libssl-dev build-essential \
+                              libyaml-dev
+
+      - name: Download and setup GCC 4.9 toolchain
+        run: |
+          mkdir -p $HOME/toolchains
+          cd $HOME/toolchains
+          git clone --depth=1 --branch=W20.13.3 \
+            --filter=blob:none --no-checkout \
+            https://github.com/deadman96385/jingpad_android_bsp.git toolchain-tmp
+          cd toolchain-tmp
+          git sparse-checkout init --cone
+          git sparse-checkout set toolchain/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9
+          git checkout
+          mv toolchain/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9 \
+             ../aarch64-linux-android-4.9
+          cd ..
+          rm -rf toolchain-tmp
+          chmod -R a+x $HOME/toolchains/aarch64-linux-android-4.9/bin
+          echo "$HOME/toolchains/aarch64-linux-android-4.9/bin" >> $GITHUB_PATH
+
+      - name: Verify toolchain
+        run: |
+          aarch64-linux-android-gcc --version
+          aarch64-linux-android-gcc -fstack-protector-strong -c -x c /dev/null -o /dev/null
+
+      - name: Build kernel
+        run: |
+          export ARCH=arm64
+          export CROSS_COMPILE=aarch64-linux-android-
+          cd source
+
+          # ===== 配置（as-received 基线 defconfig，零改动原则） =====
+          make sprd_sharkl5_defconfig
+          scripts/config --disable CONFIG_APPENDED_DTB
+          scripts/config --disable CONFIG_EFI
+          scripts/config --disable CONFIG_EFI_STUB
+          sed -i '/yamltree\.o/d' scripts/dtc/Makefile
+          sed -i 's/dt_to_yaml(/\/\/ dt_to_yaml(/g' scripts/dtc/dtc.c
+          sed -i '/ifdef CONFIG_CC_STACKPROTECTOR_STRONG/{n;s/stackp-flag :=.*/stackp-flag := -fstack-protector-strong/}' Makefile
+          sed -i '/ifdef stackp-name/,/endif/{s/exit 1/true/}' Makefile
+          sed -i '/ifdef stackp-check/,/endif/{s/exit 1/true/}' Makefile
+          make olddefconfig
+          KCFLAGS="-Wno-error=sizeof-pointer-memaccess -Wno-error=array-bounds -Wno-error=missing-braces -Wno-error=format"
+          make -j$(nproc) KCFLAGS="$KCFLAGS" 2>&1 | tee build.log
+
+          # ===== 内核内部模块 =====
+          make modules 2>&1 | tee -a build.log
+          make modules_install INSTALL_MOD_PATH=./modules_out 2>&1 | tee -a build.log
+
+      - name: Locate pure kernel image
+        id: find_kernel
+        continue-on-error: true
+        run: |
+          if [ -f source/arch/arm64/boot/Image.gz ]; then
+            echo "kernel_path=source/arch/arm64/boot/Image.gz" >> $GITHUB_OUTPUT
+          elif [ -f source/arch/arm64/boot/Image ]; then
+            echo "kernel_path=source/arch/arm64/boot/Image" >> $GITHUB_OUTPUT
+          else
+            echo "No kernel image found!"
+            exit 1
+          fi
+
+      - name: Send build.log if kernel image not found
+        if: steps.find_kernel.outcome == 'failure'
+        env:
+          BOT_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          CHAT_ID: ${{ secrets.TELEGRAM_TO }}
+        run: |
+          curl -s -F document=@source/build.log \
+            -F "caption=REBUILD-BASELINE FAILED: kernel image not found. See build.log." \
+            "https://api.telegram.org/bot${BOT_TOKEN}/sendDocument"
+          exit 1
+
+      - name: Package modules
+        run: |
+          cd source
+          KERNEL_RELEASE=$(make -s kernelrelease 2>/dev/null | grep -v '^#' | tail -1)
+          if [ -z "$KERNEL_RELEASE" ]; then
+            echo "Error: Could not get kernel release"
+            exit 1
+          fi
+          echo "Kernel release: $KERNEL_RELEASE"
+          echo "KERNEL_RELEASE=$(echo $KERNEL_RELEASE | xargs)" >> $GITHUB_ENV
+
+          MODULES_DIR="modules_out/lib/modules/$KERNEL_RELEASE"
+          if [ -d "$MODULES_DIR" ]; then
+            cd "$MODULES_DIR"
+            rm -f source build
+            tar -czf ../../../../modules.tar.gz .
+            cd ../../../..
+          else
+            echo "No modules dir, skip packaging"
+          fi
+
+      - name: Package artifacts
+        run: |
+          mkdir -p artifacts
+          cp ${{ steps.find_kernel.outputs.kernel_path }} artifacts/
+          cp source/System.map artifacts/ 2>/dev/null || true
+          cp source/build.log artifacts/ 2>/dev/null || true
+          cp modules.tar.gz artifacts/ 2>/dev/null || true
+          # debug info for offline symbol analysis
+          cp source/vmlinux artifacts/ 2>/dev/null || true
+          cd artifacts
+          ls -lh
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: rebuild-baseline-${{ github.run_id }}
+          name: Rebuild Baseline - ${{ github.run_id }}
+          files: |
+            artifacts/*
+          draft: false
+          prerelease: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Notify Telegram
+        if: always()
+        env:
+          BOT_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          CHAT_ID: ${{ secrets.TELEGRAM_TO }}
+        run: |
+          if [ "${{ job.status }}" = "success" ]; then
+            MSG="REBUILD-BASELINE OK (run ${{ github.run_id }}): pristine xintaiqi BSP built with gcc4.9, sprd_sharkl5_defconfig"
+          else
+            MSG="REBUILD-BASELINE FAILED (run ${{ github.run_id }})"
+          fi
+          curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+            -d "chat_id=${CHAT_ID}" -d "text=${MSG}"
