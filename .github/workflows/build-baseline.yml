@@ -64,9 +64,9 @@ jobs:
 
           # ===== r56 平台叠加包：iommu/drm/regulator/power/input/clk（r55 实机验证版，含 hynitron 修复与 as1509 接线） =====
           curl -sL -o overlay_r56_platform.tar.gz "https://raw.githubusercontent.com/xixi02030409/w527-kernel-build/rebuild-baseline/overlay_r56_platform.tar.gz"
-          tar -xzf overlay_r56_platform.tar.gz -C source/
-          grep -c 'hyn,92xx' source/drivers/input/touchscreen/hynitron/hynitron_core.c
-          grep -c 'as1509' source/drivers/input/misc/Makefile
+          tar -xzf overlay_r56_platform.tar.gz -C .
+          grep -c 'hyn,92xx' drivers/input/touchscreen/hynitron/hynitron_core.c
+          grep -c 'as1509' drivers/input/misc/Makefile
 
           # ===== 配置：factory IKCONFIG 展开（1376 条，忠实对齐实机配置） =====
           # factory 内核内嵌 IKCONFIG 提取自 factory_kernel_divo_0613.bin；
