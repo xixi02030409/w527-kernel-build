@@ -51,9 +51,16 @@ jobs:
 
       - name: Build kernel
         run: |
+          set -o pipefail
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-android-
           cd source
+
+          # ===== 构建修复 #1：sprd_dfs_trace.h include 路径 =====
+          # 上游树自带的坑（TRACE_INCLUDE_PATH=. 相对路径失效）；
+          # CI 树同期修复 = 头文件改绝对相对路径 + Makefile 加 srctree 到 include 路径
+          sed -i 's|#define TRACE_INCLUDE_PATH \.|#define TRACE_INCLUDE_PATH drivers/devfreq/sprd|' drivers/devfreq/sprd/sprd_dfs_trace.h
+          grep -q "ccflags-y" drivers/devfreq/sprd/Makefile || echo 'ccflags-y += -I$(srctree)' >> drivers/devfreq/sprd/Makefile
 
           # ===== 配置（as-received 基线 defconfig，零改动原则） =====
           make sprd_sharkl5_defconfig
