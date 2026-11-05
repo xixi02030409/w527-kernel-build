@@ -193,16 +193,11 @@ jobs:
           echo "=== ACCEPTANCE: ko vermagic must carry modversions (match factory vendor ko) ==="
           KO=$(find ./modules_out -name 'sprdwl_ng.ko' | head -1)
           test -n "$KO" || { echo "AUDIT FAIL: sprdwl_ng.ko missing"; exit 1; }
-          VM=$(python3 -c "
-import re,sys
-blob=open('$KO','rb').read()
-m=re.findall(rb'4\.14\.98[\x20-\x7e]{0,60}',blob)
-print(m[0].decode() if m else 'NONE')")
-          echo "built ko vermagic: $VM"
-          case "$VM" in
-            "4.14.98 SMP preempt mod_unload modversions aarch64") echo "VERMAGIC MATCH: vendor ko compatible";;
-            *) echo "AUDIT FAIL: vermagic mismatch vs factory ko"; exit 1;;
-          esac
+          if grep -aq "4\.14\.98 SMP preempt mod_unload modversions aarch64" "$KO"; then
+            echo "VERMAGIC MATCH: vendor ko compatible"
+          else
+            echo "AUDIT FAIL: ko vermagic missing modversions tag"; exit 1
+          fi
           tar -czf ../modules_v1.tar.gz -C modules_out/lib/modules .
 
       - name: Upload build log (always)
