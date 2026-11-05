@@ -28,6 +28,17 @@ jobs:
           echo "=== stock sublevel (must stay 98, no 336 patch this build) ==="
           grep -E "^(VERSION|PATCHLEVEL|SUBLEVEL|EXTRAVERSION)" Makefile
 
+      - name: Strip built-in ReSukiSU (bare baseline, factory has no KSU)
+        run: |
+          cd source
+          rm -rf drivers/kernelsu KernelSU
+          sed -i '\|obj-\$(CONFIG_KSU) += kernelsu/|d' drivers/Makefile
+          sed -i '\|source "drivers/kernelsu/Kconfig"|d' drivers/Kconfig
+          echo "=== audit: kernelsu fully stripped ==="
+          test ! -e drivers/kernelsu || { echo "AUDIT FAIL: kernelsu still present"; exit 1; }
+          grep -n "kernelsu" drivers/Makefile drivers/Kconfig && { echo "AUDIT FAIL: kernelsu refs remain"; exit 1; } || echo "clean: no kernelsu refs"
+          grep -c "CONFIG_KSU" .config 2>/dev/null || echo "config: no KSU line (pre-olddefconfig, expected)"
+
       - name: Overlay fscrypt v2 backport (A11 vold requires v2 API)
         run: |
           tar -xzf overlay_fscrypt_v2.tar.gz -C source
