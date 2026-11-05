@@ -114,6 +114,10 @@ jobs:
           cd source
           sed -i 's/^EXTRAVERSION =.*/EXTRAVERSION =/' Makefile
           grep '^EXTRAVERSION' Makefile || echo "EXTRAVERSION cleared"
+          echo "=== vermagic disguise (r-series 3-part recipe #2, from 336patch) ==="
+          git apply --check --whitespace=nowarn ../vermagic_disguise.patch
+          git apply --whitespace=nowarn ../vermagic_disguise.patch
+          grep -n "keep emitting the tag" include/linux/vermagic.h || { echo "AUDIT FAIL: vermagic disguise missing"; exit 1; }
           cp ../w527_r56_v1.config .config
           sed -i '/yamltree\.o/d' scripts/dtc/Makefile
           sed -i 's/dt_to_yaml(/\/\/ dt_to_yaml(/g' scripts/dtc/dtc.c
@@ -186,6 +190,19 @@ jobs:
           cd source
           export ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu-
           make modules_install INSTALL_MOD_PATH=./modules_out
+          echo "=== ACCEPTANCE: ko vermagic must carry modversions (match factory vendor ko) ==="
+          KO=$(find ./modules_out -name 'sprdwl_ng.ko' | head -1)
+          test -n "$KO" || { echo "AUDIT FAIL: sprdwl_ng.ko missing"; exit 1; }
+          VM=$(python3 -c "
+import re,sys
+blob=open('$KO','rb').read()
+m=re.findall(rb'4\.14\.98[\x20-\x7e]{0,60}',blob)
+print(m[0].decode() if m else 'NONE')")
+          echo "built ko vermagic: $VM"
+          case "$VM" in
+            "4.14.98 SMP preempt mod_unload modversions aarch64") echo "VERMAGIC MATCH: vendor ko compatible";;
+            *) echo "AUDIT FAIL: vermagic mismatch vs factory ko"; exit 1;;
+          esac
           tar -czf ../modules_v1.tar.gz -C modules_out/lib/modules .
 
       - name: Upload build log (always)
