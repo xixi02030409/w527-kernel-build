@@ -37,6 +37,10 @@ jobs:
           git apply --check --whitespace=nowarn ../fscrypt_v2_fs_h.patch
           git apply --whitespace=nowarn ../fscrypt_v2_fs_h.patch
           grep -n "s_master_keys" include/linux/fs.h || { echo "AUDIT FAIL: s_master_keys missing"; exit 1; }
+          echo "=== crypto builtin-free rename (gcc11 compat, from 336patch) ==="
+          git apply --check --whitespace=nowarn ../crypto_builtin_free_fix.patch
+          git apply --whitespace=nowarn ../crypto_builtin_free_fix.patch
+          grep -c "free_inst" crypto/xts.c crypto/lrw.c || { echo "AUDIT FAIL: free_inst rename missing"; exit 1; }
           echo "=== fs/crypto files ==="; ls fs/crypto/
           echo "=== v1 page-API remnants (expect clean) ==="
           grep -rln "fscrypt_encrypt_page(\|fscrypt_decrypt_page(\|fscrypt_pullback_bio_page\|fscrypt_restore_control_page\|fscrypt_control_page\|fscrypt_decrypt_bio_pages" fs/ || echo "clean"
