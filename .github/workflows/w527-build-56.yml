@@ -33,6 +33,10 @@ jobs:
           tar -xzf overlay_fscrypt_v2.tar.gz -C source
           cd source
           rm -f include/linux/fscrypt_notsupp.h include/linux/fscrypt_supp.h
+          echo "=== fs.h v2 struct patch (from 336patch, r-series recipe) ==="
+          git apply --check --whitespace=nowarn ../fscrypt_v2_fs_h.patch
+          git apply --whitespace=nowarn ../fscrypt_v2_fs_h.patch
+          grep -n "s_master_keys" include/linux/fs.h || { echo "AUDIT FAIL: s_master_keys missing"; exit 1; }
           echo "=== fs/crypto files ==="; ls fs/crypto/
           echo "=== v1 page-API remnants (expect clean) ==="
           grep -rln "fscrypt_encrypt_page(\|fscrypt_decrypt_page(\|fscrypt_pullback_bio_page\|fscrypt_restore_control_page\|fscrypt_control_page\|fscrypt_decrypt_bio_pages" fs/ || echo "clean"
