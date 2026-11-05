@@ -1,0 +1,44 @@
+diff --git a/crypto/lrw.c b/crypto/lrw.c
+index 886f91f24..1b73fec81 100644
+--- a/crypto/lrw.c
++++ b/crypto/lrw.c
+@@ -531,7 +531,7 @@ static void exit_tfm(struct crypto_skcipher *tfm)
+ 	crypto_free_skcipher(ctx->child);
+ }
+ 
+-static void free(struct skcipher_instance *inst)
++static void free_inst(struct skcipher_instance *inst)
+ {
+ 	crypto_drop_skcipher(skcipher_instance_ctx(inst));
+ 	kfree(inst);
+@@ -642,7 +642,7 @@ static int create(struct crypto_template *tmpl, struct rtattr **tb)
+ 	inst->alg.encrypt = encrypt;
+ 	inst->alg.decrypt = decrypt;
+ 
+-	inst->free = free;
++	inst->free = free_inst;
+ 
+ 	err = skcipher_register_instance(tmpl, inst);
+ 	if (err)
+diff --git a/crypto/xts.c b/crypto/xts.c
+index e31828ed0..f5fba941d 100644
+--- a/crypto/xts.c
++++ b/crypto/xts.c
+@@ -469,7 +469,7 @@ static void exit_tfm(struct crypto_skcipher *tfm)
+ 	crypto_free_cipher(ctx->tweak);
+ }
+ 
+-static void free(struct skcipher_instance *inst)
++static void free_inst(struct skcipher_instance *inst)
+ {
+ 	crypto_drop_skcipher(skcipher_instance_ctx(inst));
+ 	kfree(inst);
+@@ -580,7 +580,7 @@ static int create(struct crypto_template *tmpl, struct rtattr **tb)
+ 	inst->alg.encrypt = encrypt;
+ 	inst->alg.decrypt = decrypt;
+ 
+-	inst->free = free;
++	inst->free = free_inst;
+ 
+ 	err = skcipher_register_instance(tmpl, inst);
+ 	if (err)
