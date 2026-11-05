@@ -1,0 +1,198 @@
+name: W527 kernel r56 v1 (factory-config bare baseline)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout this repo (workflow + config + overlays)
+        uses: actions/checkout@v4
+
+      - name: Install host deps and aarch64 toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bc bison flex libssl-dev make gcc libyaml-dev cpio xz-utils gcc-aarch64-linux-gnu
+          aarch64-linux-gnu-gcc --version | head -1
+
+      - name: Clone upstream kernel source (ZeroDreamCat uws6152 4.14.98 test)
+        run: |
+          git clone --depth=1 --branch test --recurse-submodules \
+            https://github.com/ZeroDreamCat/android_uws6152_4.14.98.git source
+          cd source
+          git submodule update --init --recursive || true
+          echo "=== stock sublevel (must stay 98, no 336 patch this build) ==="
+          grep -E "^(VERSION|PATCHLEVEL|SUBLEVEL|EXTRAVERSION)" Makefile
+
+      - name: Overlay fscrypt v2 backport (A11 vold requires v2 API)
+        run: |
+          tar -xzf overlay_fscrypt_v2.tar.gz -C source
+          cd source
+          rm -f include/linux/fscrypt_notsupp.h include/linux/fscrypt_supp.h
+          echo "=== fs/crypto files ==="; ls fs/crypto/
+          echo "=== v1 page-API remnants (expect clean) ==="
+          grep -rln "fscrypt_encrypt_page(\|fscrypt_decrypt_page(\|fscrypt_pullback_bio_page\|fscrypt_restore_control_page\|fscrypt_control_page\|fscrypt_decrypt_bio_pages" fs/ || echo "clean"
+
+      - name: Accept inlinecrypt mount option (A11 fstab needs it)
+        run: |
+          cd source
+          python3 << 'PYEOF'
+          import sys
+          def patch(path, anchor, tag):
+              s = open(path).read()
+              n = s.count(anchor)
+              if n != 1:
+                  print('%s: anchor matched %d times, abort' % (tag, n)); sys.exit(1)
+              ins = ('\t\t/* Accept inlinecrypt (A11 fstab compat): '
+                     'software fscrypt fallback */\n'
+                     '\t\tif (!strcmp(p, "inlinecrypt"))\n'
+                     '\t\t\tcontinue;\n')
+              open(path, 'w').write(s.replace(anchor, ins + anchor))
+              print('%s patched: inlinecrypt accepted+ignored' % tag)
+          patch('fs/f2fs/super.c',
+                '\t\targs[0].to = args[0].from = NULL;\n'
+                '\t\ttoken = match_token(p, f2fs_tokens, args);',
+                'f2fs')
+          patch('fs/ext4/super.c',
+                '\t\targs[0].to = args[0].from = NULL;\n'
+                '\t\ttoken = match_token(p, tokens, args);\n'
+                '\t\tif (handle_mount_opt(sb, p, token, args, journal_devnum,',
+                'ext4')
+          PYEOF
+
+      - name: Overlay W527 BSP driver sources (qmc6308 mag + mir3da gsensor + wcn_bus.h)
+        run: |
+          tar -xzf drivers_overlay.tar.gz -C source
+          echo "sources extracted (wiring done by v1_overlay port script)"
+
+      - name: Overlay r56 v1 (eta r54 full replace + fgu present force + NTC fallback + sensor wiring)
+        run: |
+          mkdir -p source/v1_overlay
+          tar -xzf v1_overlay.tar.gz -C source/v1_overlay
+          cd source
+          python3 v1_overlay/port_v1.py
+          echo "=== v1 overlay verify ==="
+          grep -n "psy_changed_throttled" drivers/power/supply/eta6947-charger.c | head -2
+          grep -n "bat_present = true" drivers/power/supply/sc27xx_fuel_gauge.c
+          grep -n "W527-r41b-ntc-fallback" drivers/power/supply/sc27xx_fuel_gauge.c
+
+      - name: Overlay r32 (Hynitron V2.23 20251104 unified driver FULL REPLACEMENT)
+        run: |
+          rm -rf source/drivers/input/touchscreen/hynitron
+          tar -xzf drivers_overlay_r32.tar.gz -C source
+          echo "=== r32 V2.23 driver verify ==="
+          find source/drivers/input/touchscreen/hynitron -type f | wc -l
+          grep -n "Hynitron V2.23" source/drivers/input/touchscreen/hynitron/hyn_cfg.h
+          grep -n "hyn,92xx" source/drivers/input/touchscreen/hynitron/hyn_core.c
+          grep -rn "old-SDK hynitron_core\|hynitron_i2c.c" source/drivers/input/touchscreen/hynitron/Makefile || echo "old driver gone OK"
+
+      - name: Apply v1 config and vermagic alignment
+        run: |
+          cd source
+          sed -i 's/^EXTRAVERSION =.*/EXTRAVERSION =/' Makefile
+          grep '^EXTRAVERSION' Makefile || echo "EXTRAVERSION cleared"
+          cp ../w527_r56_v1.config .config
+          sed -i '/yamltree\.o/d' scripts/dtc/Makefile
+          sed -i 's/dt_to_yaml(/\/\/ dt_to_yaml(/g' scripts/dtc/dtc.c
+          sed -i '/ifdef CONFIG_CC_STACKPROTECTOR_STRONG/{n;s/stackp-flag :=.*/stackp-flag := -fstack-protector-strong/}' Makefile
+          sed -i '/ifdef stackp-name/,/endif/{s/exit 1/true/}' Makefile
+          sed -i '/ifdef stackp-check/,/endif/{s/exit 1/true/}' Makefile
+          export ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu-
+          make olddefconfig
+          echo "=== final config spot checks ==="
+          grep -E "^CONFIG_(MODVERSIONS|WCN_WLAN|WCN_SLP|TOUCHSCREEN_HYNITRON_TS|SENSORS_QMC6308|SENSORS_MIR3DA|CHARGER_ETA6947|FUEL_GAUGE_SC27XX|SPRD_WATCHDOG|FS_ENCRYPTION)=" .config
+          echo "=== dropped by olddefconfig (expect no SPRD_POWER etc.) ==="
+          grep -E "^CONFIG_(SPRD_POWER|IOSCHED_BFQ)=" .config || echo "dropped OK"
+          cp .config ../final_config.txt
+
+      - name: Build kernel and modules
+        run: |
+          cd source
+          export ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu-
+          KCFLAGS="-Wno-error=sizeof-pointer-memaccess -Wno-error=array-bounds -Wno-error=missing-braces -Wno-error=format -Wno-error=missing-attributes -Wno-error=address-of-packed-member -Wno-address-of-packed-member -Wno-error=zero-length-bounds -fno-tree-loop-distribute-patterns -fno-store-merging -fno-tree-slp-vectorize"
+          set -o pipefail
+          make -j$(nproc) Image KCFLAGS="$KCFLAGS" 2>&1 | tee build.log || {
+            echo "=== BUILD FAILED, extracting errors ==="
+            grep -nE "error:|Error [0-9]" build.log | head -50
+            grep -nE "error:|Error [0-9]" build.log | head -50 | while IFS= read -r l; do echo "::error::$l"; done
+            exit 1
+          }
+          echo "=== Image build OK ==="
+          make modules KCFLAGS="$KCFLAGS" 2>&1 | tee -a build.log || {
+            echo "=== MODULES FAILED, extracting errors ==="
+            grep -nE "error:|Error [0-9]" build.log | head -50
+            grep -nE "error:|Error [0-9]" build.log | head -50 | while IFS= read -r l; do echo "::error::$l"; done
+            exit 1
+          }
+          echo "=== modules build OK ==="
+
+      - name: Post-build audit gate (hard checks)
+        run: |
+          cd source
+          KR=$(make -s kernelrelease 2>/dev/null | grep -v '^#' | tail -1)
+          echo "kernelrelease: $KR"
+          if [ "$KR" != "4.14.98" ]; then echo "AUDIT FAIL: kernelrelease=$KR (expect 4.14.98 pure)"; exit 1; fi
+          echo "=== v1 driver objects compiled ==="
+          for o in drivers/input/touchscreen/hynitron/hyn_core.o \
+                   drivers/input/misc/qmc6308/qmc6308.o \
+                   drivers/input/misc/mir3da/mir3da_core.o \
+                   drivers/power/supply/eta6947-charger.o; do
+            if [ ! -f "$o" ]; then echo "AUDIT FAIL: missing $o"; exit 1; fi
+            echo "OK $o"
+          done
+          echo "=== eta6947 symbols in System.map ==="
+          E=$(grep -c eta6947 System.map || true)
+          echo "eta6947 symbol count: $E"
+          if [ "${E:-0}" -lt 3 ]; then echo "AUDIT FAIL: eta6947 symbols too few ($E)"; exit 1; fi
+          echo "=== forbidden symbols (expect zero) ==="
+          B=$(grep -ci "bfq" System.map || true); P=$(grep -ci "sprd_power" System.map || true)
+          # ksu_ prefix exact (ksys_* syscall wrappers do NOT match ksu_)
+          K=$(grep -cE "ksu_[a-z]" System.map || true)
+          echo "bfq=$B sprd_power=$P ksu=$K"
+          if [ "${B:-0}" != "0" ] || [ "${P:-0}" != "0" ] || [ "${K:-0}" != "0" ]; then echo "AUDIT FAIL: forbidden symbols present"; exit 1; fi
+          echo "=== Image size cap ==="
+          SZ=$(stat -c%s arch/arm64/boot/Image)
+          echo "Image size: $SZ (cap 17568128)"
+          if [ "$SZ" -gt 17568128 ]; then echo "AUDIT FAIL: Image exceeds factory kernel region"; exit 1; fi
+          echo "=== vermagic strings spot ==="
+          strings arch/arm64/boot/Image | grep -E "^4\.14\.98" | head -3 || true
+          echo "AUDIT GATE ALL PASS"
+
+      - name: Package modules
+        run: |
+          cd source
+          export ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu-
+          make modules_install INSTALL_MOD_PATH=./modules_out
+          tar -czf ../modules_v1.tar.gz -C modules_out/lib/modules .
+
+      - name: Upload build log (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-r56v1
+          path: |
+            source/build.log
+            source/include/config/kernel.release
+            final_config.txt
+          if-no-files-found: ignore
+
+      - name: Upload release artifacts
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: build56-v1-${{ github.run_id }}
+          name: W527 r56 v1 factory-baseline ${{ github.run_id }}
+          files: |
+            source/arch/arm64/boot/Image
+            source/System.map
+            source/Module.symvers
+            modules_v1.tar.gz
+            source/build.log
+            final_config.txt
+          draft: false
+          prerelease: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
