@@ -1,0 +1,143 @@
+name: W527 kernel r56 v2 (in-tree baseline, factory-config)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout this repo (workflow + config)
+        uses: actions/checkout@v4
+
+      - name: Install host deps and aarch64 toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bc bison flex libssl-dev make gcc libyaml-dev cpio xz-utils gcc-aarch64-linux-gnu
+          aarch64-linux-gnu-gcc --version | head -1
+
+      - name: Clone upstream kernel source (xixi02030409 uws6152 4.14.98 r56v2, fscrypt v2 + drivers + vermagic in-tree, KSU stripped)
+        run: |
+          git clone --depth=1 --branch r56v2 \
+            https://github.com/xixi02030409/android_uws6152_4.14.98.git source
+          cd source
+          echo "=== stock sublevel (must stay 98, no 336 patch this build) ==="
+          grep -E "^(VERSION|PATCHLEVEL|SUBLEVEL|EXTRAVERSION)" Makefile
+
+      - name: Apply v2 config and Makefile-side build fixes
+        run: |
+          cd source
+          echo "=== vermagic disguise check (in-tree, r-series 3-part recipe #2) ==="
+          grep -n "keep emitting the tag" include/linux/vermagic.h || { echo "AUDIT FAIL: vermagic disguise missing"; exit 1; }
+          cp ../w527_r56_v2.config .config
+          sed -i '/yamltree\.o/d' scripts/dtc/Makefile
+          sed -i 's/dt_to_yaml(/\/\/ dt_to_yaml(/g' scripts/dtc/dtc.c
+          sed -i '/ifdef CONFIG_CC_STACKPROTECTOR_STRONG/{n;s/stackp-flag :=.*/stackp-flag := -fstack-protector-strong/}' Makefile
+          sed -i '/ifdef stackp-name/,/endif/{s/exit 1/true/}' Makefile
+          sed -i '/ifdef stackp-check/,/endif/{s/exit 1/true/}' Makefile
+          export ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu-
+          make olddefconfig
+          echo "=== final config spot checks ==="
+          grep -E "^CONFIG_(MODVERSIONS|WCN_WLAN|WCN_SLP|TOUCHSCREEN_HYNITRON_TS|SENSORS_QMC6308|SENSORS_MIR3DA|CHARGER_ETA6947|FUEL_GAUGE_SC27XX|SPRD_WATCHDOG|FS_ENCRYPTION)=" .config
+          echo "=== dropped by olddefconfig (expect no SPRD_POWER etc.) ==="
+          grep -E "^CONFIG_(SPRD_POWER|IOSCHED_BFQ)=" .config || echo "dropped OK"
+          cp .config ../final_config.txt
+
+      - name: Build kernel and modules
+        run: |
+          cd source
+          export ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu-
+          KCFLAGS="-Wno-error=sizeof-pointer-memaccess -Wno-error=array-bounds -Wno-error=missing-braces -Wno-error=format -Wno-error=missing-attributes -Wno-error=address-of-packed-member -Wno-address-of-packed-member -Wno-error=zero-length-bounds -fno-tree-loop-distribute-patterns -fno-store-merging -fno-tree-slp-vectorize"
+          set -o pipefail
+          make -j$(nproc) Image KCFLAGS="$KCFLAGS" 2>&1 | tee build.log || {
+            echo "=== BUILD FAILED, extracting errors ==="
+            grep -nE "error:|Error [0-9]" build.log | head -50
+            grep -nE "error:|Error [0-9]" build.log | head -50 | while IFS= read -r l; do echo "::error::$l"; done
+            exit 1
+          }
+          echo "=== Image build OK ==="
+          make modules KCFLAGS="$KCFLAGS" 2>&1 | tee -a build.log || {
+            echo "=== MODULES FAILED, extracting errors ==="
+            grep -nE "error:|Error [0-9]" build.log | head -50
+            grep -nE "error:|Error [0-9]" build.log | head -50 | while IFS= read -r l; do echo "::error::$l"; done
+            exit 1
+          }
+          echo "=== modules build OK ==="
+
+      - name: Post-build audit gate (hard checks)
+        run: |
+          cd source
+          KR=$(make -s kernelrelease 2>/dev/null | grep -v '^#' | tail -1)
+          echo "kernelrelease: $KR"
+          if [ "$KR" != "4.14.98" ]; then echo "AUDIT FAIL: kernelrelease=$KR (expect 4.14.98 pure)"; exit 1; fi
+          echo "=== v1 driver objects compiled ==="
+          for o in drivers/input/touchscreen/hynitron/hyn_core.o \
+                   drivers/input/misc/qmc6308/qmc6308.o \
+                   drivers/input/misc/mir3da/mir3da_core.o \
+                   drivers/power/supply/eta6947-charger.o; do
+            if [ ! -f "$o" ]; then echo "AUDIT FAIL: missing $o"; exit 1; fi
+            echo "OK $o"
+          done
+          echo "=== eta6947 symbols in System.map ==="
+          E=$(grep -c eta6947 System.map || true)
+          echo "eta6947 symbol count: $E"
+          if [ "${E:-0}" -lt 3 ]; then echo "AUDIT FAIL: eta6947 symbols too few ($E)"; exit 1; fi
+          echo "=== forbidden symbols (expect zero) ==="
+          B=$(grep -ci "bfq" System.map || true); P=$(grep -ci "sprd_power" System.map || true)
+          # ksu_ prefix exact (ksys_* syscall wrappers do NOT match ksu_)
+          K=$(grep -cE "ksu_[a-z]" System.map || true)
+          echo "bfq=$B sprd_power=$P ksu=$K"
+          if [ "${B:-0}" != "0" ] || [ "${P:-0}" != "0" ] || [ "${K:-0}" != "0" ]; then echo "AUDIT FAIL: forbidden symbols present"; exit 1; fi
+          echo "=== Image size cap ==="
+          SZ=$(stat -c%s arch/arm64/boot/Image)
+          echo "Image size: $SZ (cap 17568128)"
+          if [ "$SZ" -gt 17568128 ]; then echo "AUDIT FAIL: Image exceeds factory kernel region"; exit 1; fi
+          echo "=== vermagic strings spot ==="
+          strings arch/arm64/boot/Image | grep -E "^4\.14\.98" | head -3 || true
+          echo "AUDIT GATE ALL PASS"
+
+      - name: Package modules
+        run: |
+          cd source
+          export ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu-
+          make modules_install INSTALL_MOD_PATH=./modules_out
+          echo "=== ACCEPTANCE: ko vermagic must carry modversions (match factory vendor ko) ==="
+          KO=$(find ./modules_out -name 'sprdwl_ng.ko' | head -1)
+          test -n "$KO" || { echo "AUDIT FAIL: sprdwl_ng.ko missing"; exit 1; }
+          if grep -aq "4\.14\.98 SMP preempt mod_unload modversions aarch64" "$KO"; then
+            echo "VERMAGIC MATCH: vendor ko compatible"
+          else
+            echo "AUDIT FAIL: ko vermagic missing modversions tag"; exit 1
+          fi
+          tar -czf ../modules_v2.tar.gz -C modules_out/lib/modules .
+
+      - name: Upload build log (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-r56v2
+          path: |
+            source/build.log
+            source/include/config/kernel.release
+            final_config.txt
+          if-no-files-found: ignore
+
+      - name: Upload release artifacts
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: build56-v2-${{ github.run_id }}
+          name: W527 r56 v2 in-tree baseline ${{ github.run_id }}
+          files: |
+            source/arch/arm64/boot/Image
+            source/System.map
+            source/Module.symvers
+            modules_v2.tar.gz
+            source/build.log
+            final_config.txt
+          draft: false
+          prerelease: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
