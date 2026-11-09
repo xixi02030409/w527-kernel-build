@@ -72,9 +72,10 @@ jobs:
           cd source
           test -f arch/arm64/boot/Image
           S=$(stat -c %s arch/arm64/boot/Image); test $S -gt 16000000 && test $S -lt 18000000
-          grep -q "BD_health_pro" System.map
-          grep -q "eta6947_charger_driver" System.map
-          grep -q "as1509_enable_store" System.map
+          for sym in BD_health_pro eta6947_charger_driver as1509_enable_store; do
+            grep -q "$sym" System.map || { echo "MISSING SYMBOL: $sym"; exit 1; }
+            echo "symbol OK: $sym"
+          done
           if grep -q "rstouch" System.map; then echo "rstouch must NOT exist (r55 audit P0)"; exit 1; fi
           echo "gates passed"
 
@@ -95,6 +96,7 @@ jobs:
             build.log
             build_meta.txt
             source/.config
+            source/System.map
 
       - name: Release
         uses: softprops/action-gh-release@v2
