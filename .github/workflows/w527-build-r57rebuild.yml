@@ -58,6 +58,8 @@ jobs:
           cd source
           make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- -j$(nproc) Image modules 2>&1 | tee ../build.log
 
+      - name: Upload artifacts (full set)
+
       - name: Hard gates (static)
         run: |
           cd source
@@ -77,7 +79,6 @@ jobs:
           cp arch/arm64/boot/Image ../Image_out
           cp System.map ../System.map_out
 
-      - name: Upload artifacts (full set)
         uses: actions/upload-artifact@v4
         with:
           name: build-log-r57
