@@ -35,7 +35,8 @@ jobs:
         run: |
           cd source
           rm -rf drivers/kernelsu
-          echo "kernelsu stripped"
+          sed -i "/drivers\/kernelsu\/Kconfig/d" drivers/Kconfig
+          echo "kernelsu stripped (dir + Kconfig source line)"
 
       - name: Config (w527.config_r55 + olddefconfig + verify final values)
         run: |
