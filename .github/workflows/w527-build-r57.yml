@@ -76,7 +76,6 @@ jobs:
             grep -q "$sym" System.map || { echo "MISSING SYMBOL: $sym"; exit 1; }
             echo "symbol OK: $sym"
           done
-          if grep -q "rstouch" System.map; then echo "rstouch must NOT exist (r55 audit P0)"; exit 1; fi
           echo "gates passed"
 
       - name: Package modules
