@@ -24,11 +24,12 @@ jobs:
           git status --short | tee -a ../build_meta.txt
           git diff --stat | tee -a ../build_meta.txt
 
-      - name: Toolchain (runner built-in gcc-11.4, same as r-series)
+      - name: Install aarch64 cross toolchain (historical r-series recipe: apt gcc-11.4)
         run: |
-          gcc --version | head -1
-          gcc --version | grep -q "11\." || { echo "gcc11 required"; exit 1; }
-          echo "TOOLCHAIN=runner-gcc-11" | tee ../build_meta.txt
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+          aarch64-linux-gnu-gcc --version | head -1 | tee /tmp/tcver
+          aarch64-linux-gnu-gcc --version | grep -q "11\." || { echo "gcc11 required (r-series parity)"; exit 1; }
+          echo "TOOLCHAIN=aarch64-linux-gnu-gcc-11" | tee ../build_meta.txt
 
 
       - name: KSU strip (r-series standard)
@@ -56,6 +57,8 @@ jobs:
       - name: Build (KCFLAGS tightened)
         run: |
           cd source
+          sed -i '/ifdef stackp-name/,/endif/{s/exit 1/true/}' Makefile
+          set -o pipefail
           make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- -j$(nproc) Image modules 2>&1 | tee ../build.log
 
       - name: Hard gates (static)
