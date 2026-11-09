@@ -19,14 +19,14 @@ jobs:
         run: |
           git clone https://github.com/xixi02030409/android_uws6152_4.14.98 source
           cd source
-          git checkout 4e3d21ca748492085adda5e8a5c6e97cc9e60dc4
+          git checkout 1234901189128039c03e449b6b9b2f899c828108
           echo "SOURCE_SHA=$(git rev-parse HEAD)" | tee ../build_meta.txt
           git status --short | tee -a ../build_meta.txt
           git diff --stat | tee -a ../build_meta.txt
 
       - name: Install aarch64 cross toolchain (historical r-series recipe - apt gcc-11.4)
         run: |
-          sudo apt-get install -y gcc-aarch64-linux-gnu
+          sudo apt-get install -y gcc-aarch64-linux-gnu bc bison flex libssl-dev libyaml-dev cpio xz-utils
           aarch64-linux-gnu-gcc --version | head -1 | tee /tmp/tcver
           aarch64-linux-gnu-gcc --version | grep -q "11\." || { echo "gcc11 required (r-series parity)"; exit 1; }
           echo "TOOLCHAIN=aarch64-linux-gnu-gcc-11" | tee ../build_meta.txt
