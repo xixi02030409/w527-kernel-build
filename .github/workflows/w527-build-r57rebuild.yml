@@ -66,7 +66,7 @@ jobs:
           test -f arch/arm64/boot/Image
           S=$(stat -c %s arch/arm64/boot/Image); test $S -gt 16000000 && test $S -lt 18000000
           grep -q "BD_health_pro" System.map
-          grep -q "eta6947_psy_changed_throttled" System.map
+          grep -q "eta6947_charger_driver" System.map
           grep -q "as1509_enable_store" System.map
           if grep -q "rstouch" System.map; then echo "rstouch must NOT exist (r55 audit P0)"; exit 1; fi
           echo "gates passed"
