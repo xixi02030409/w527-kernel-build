@@ -1,0 +1,102 @@
+name: W527 kernel r57-rebuild (in-tree, pinned SHA)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout workflow repo (pinned)
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Clone kernel source (pin full SHA)
+        run: |
+          git clone https://github.com/xixi02030409/android_uws6152_4.14.98 source
+          cd source
+          git checkout 84644e5511b525d4a08e47a03b0bf4374d4d89a6
+          echo "SOURCE_SHA=$(git rev-parse HEAD)" | tee ../build_meta.txt
+          git status --short | tee -a ../build_meta.txt
+          git diff --stat | tee -a ../build_meta.txt
+
+      - name: Toolchain (runner built-in gcc-11.4, same as r-series)
+        run: |
+          gcc --version | head -1
+          gcc --version | grep -q "11\." || { echo "gcc11 required"; exit 1; }
+          echo "TOOLCHAIN=runner-gcc-11" | tee ../build_meta.txt
+
+      - name: Apply w527_336.patch (git apply --check first)
+        run: |
+          cd source
+          git apply --check ../w527_336.patch
+          git apply ../w527_336.patch
+          echo "336patch applied (stable backport + ABI fixes + vermagic disguise segment)"
+
+      - name: KSU strip (r-series standard)
+        run: |
+          cd source
+          rm -rf drivers/kernelsu
+          echo "kernelsu stripped"
+
+      - name: Config (w527.config_r55 + olddefconfig + verify final values)
+        run: |
+          cd source
+          echo "CONFIG_SHA=$(sha256sum ../w527.config_r55 | cut -d' ' -f1)" >> ../build_meta.txt
+          cp ../w527.config_r55 .config
+          make ARCH=arm64 olddefconfig
+          grep -q "CONFIG_MODVERSIONS=n" .config || ! grep -q "CONFIG_MODVERSIONS=y" .config
+          grep -q "CONFIG_BD1860=y" .config
+          grep -q "CONFIG_INPUT_AS1509=y" .config
+          grep -q "CONFIG_CHARGER_ETA6947=y" .config
+          grep -q 'CONFIG_CONSOLE_LOGLEVEL_DEFAULT=3' .config
+          echo "config verified"
+
+      - name: Build (KCFLAGS tightened)
+        run: |
+          cd source
+          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- -j$(nproc) Image modules 2>&1 | tee ../build.log
+
+      - name: Hard gates (static)
+        run: |
+          cd source
+          test -f arch/arm64/boot/Image
+          S=$(stat -c %s arch/arm64/boot/Image); test $S -gt 16000000 && test $S -lt 18000000
+          grep -q "BD_health_pro" System.map
+          grep -q "eta6947_psy_changed_throttled" System.map
+          grep -q "as1509_enable_store" System.map
+          if grep -q "rstouch" System.map; then echo "rstouch must NOT exist (r55 audit P0)"; exit 1; fi
+          echo "gates passed"
+
+      - name: Package modules
+        run: |
+          cd source
+          make ARCH=arm64 modules_install INSTALL_MOD_PATH=./modules_out
+          cd modules_out && tar czf ../modules336.tar.gz . && cd ..
+          cp arch/arm64/boot/Image ../Image_out
+          cp System.map ../System.map_out
+
+      - name: Upload artifacts (full set)
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-r57
+          path: |
+            build.log
+            build_meta.txt
+            source/.config
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: r57rebuild-${{ github.run_id }}
+          files: |
+            Image
+            System.map
+            Module.symvers
+            modules336.tar.gz
+            build.log
+            build_meta.txt
