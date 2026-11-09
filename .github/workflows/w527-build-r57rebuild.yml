@@ -43,6 +43,8 @@ jobs:
           echo "CONFIG_SHA=$(sha256sum ../w527.config_r55 | cut -d' ' -f1)" >> ../build_meta.txt
           cp ../w527.config_r55 .config
           make ARCH=arm64 olddefconfig
+          sed -i "s/^#*CONFIG_CONSOLE_LOGLEVEL_DEFAULT.*/CONFIG_CONSOLE_LOGLEVEL_DEFAULT=3/" .config
+          sed -i "s/^#*CONFIG_MESSAGE_LOGLEVEL_DEFAULT.*/CONFIG_MESSAGE_LOGLEVEL_DEFAULT=3/" .config
           grep -q "CONFIG_MODVERSIONS=n" .config || ! grep -q "CONFIG_MODVERSIONS=y" .config
           grep -q "CONFIG_BD1860=y" .config
           grep -q "CONFIG_INPUT_AS1509=y" .config
