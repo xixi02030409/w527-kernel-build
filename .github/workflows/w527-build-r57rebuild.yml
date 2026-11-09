@@ -30,12 +30,6 @@ jobs:
           gcc --version | grep -q "11\." || { echo "gcc11 required"; exit 1; }
           echo "TOOLCHAIN=runner-gcc-11" | tee ../build_meta.txt
 
-      - name: Apply w527_336.patch (git apply --check first)
-        run: |
-          cd source
-          git apply --check ../w527_336.patch
-          git apply ../w527_336.patch
-          echo "336patch applied (stable backport + ABI fixes + vermagic disguise segment)"
 
       - name: KSU strip (r-series standard)
         run: |
