@@ -58,6 +58,7 @@ jobs:
         run: |
           cd source
           sed -i '/ifdef stackp-name/,/endif/{s/exit 1/true/}' Makefile
+          sed -i '/yamltree\.o/d' scripts/dtc/Makefile
           set -o pipefail
           make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- -j$(nproc) Image modules 2>&1 | tee ../build.log
 
