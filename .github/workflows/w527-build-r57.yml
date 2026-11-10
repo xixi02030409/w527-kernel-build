@@ -100,9 +100,9 @@ jobs:
         with:
           tag_name: r57rebuild-${{ github.run_id }}
           files: |
-            Image
-            System.map
-            Module.symvers
-            modules336.tar.gz
+            Image_out
+            System.map_out
+            source/Module.symvers
+            source/modules336.tar.gz
             build.log
             build_meta.txt
