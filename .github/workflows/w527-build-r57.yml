@@ -19,7 +19,7 @@ jobs:
         run: |
           git clone https://github.com/xixi02030409/android_uws6152_4.14.98 source
           cd source
-          git checkout c2b45710de0de23674f67158fc3f9ac71ed545a9
+          git checkout 698942573e72c5113343409571c344a616eed2d6
           echo "SOURCE_SHA=$(git rev-parse HEAD)" | tee ../build_meta.txt
           git status --short | tee -a ../build_meta.txt
           git diff --stat | tee -a ../build_meta.txt
