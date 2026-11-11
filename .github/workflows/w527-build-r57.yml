@@ -31,7 +31,8 @@ jobs:
           OK=0
           for M in "http://archive.ubuntu.com/ubuntu" "https://mirrors.kernel.org/ubuntu" "http://azure.archive.ubuntu.com/ubuntu"; do
             echo "=== mirror: $M ==="
-            sudo sed -i "s|http://[a-z.]*archive.ubuntu.com/ubuntu|$M|g" /etc/apt/sources.list
+            sudo grep -rl "archive.ubuntu.com" /etc/apt/sources.list /etc/apt/sources.list.d/ 2>/dev/null | sudo xargs -r sed -i "s|http://[a-z.]*archive.ubuntu.com/ubuntu|$M|g"
+            grep -rh "archive.ubuntu.com" /etc/apt/sources.list /etc/apt/sources.list.d/ 2>/dev/null | head -2
             if sudo apt-get $APT_OPTS install -y gcc-aarch64-linux-gnu bc bison flex libssl-dev libyaml-dev cpio xz-utils; then OK=1; break; fi
             sleep 10
           done
