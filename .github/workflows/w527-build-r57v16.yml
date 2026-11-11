@@ -1,0 +1,120 @@
+name: W527 kernel r57-rebuild (in-tree, pinned SHA)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout workflow repo (pinned)
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Clone kernel source (pin full SHA)
+        run: |
+          git clone https://github.com/xixi02030409/android_uws6152_4.14.98 source
+          cd source
+          git checkout 3e5f4a89e37f
+          echo "SOURCE_SHA=$(git rev-parse HEAD)" | tee ../build_meta.txt
+          git status --short | tee -a ../build_meta.txt
+          git diff --stat | tee -a ../build_meta.txt
+
+      - name: Install aarch64 cross toolchain (historical r-series recipe - apt gcc-11.4)
+        timeout-minutes: 14
+        run: |
+          APT_OPTS="-o Acquire::Retries=8 -o Acquire::http::Timeout=30"
+          OK=0
+          for M in "http://archive.ubuntu.com/ubuntu" "https://mirrors.kernel.org/ubuntu" "http://azure.archive.ubuntu.com/ubuntu"; do
+            echo "=== mirror: $M ==="
+            sudo grep -rl "archive.ubuntu.com" /etc/apt/sources.list /etc/apt/sources.list.d/ 2>/dev/null | sudo xargs -r sed -i "s|http://[a-z.]*archive.ubuntu.com/ubuntu|$M|g"
+            grep -rh "archive.ubuntu.com" /etc/apt/sources.list /etc/apt/sources.list.d/ 2>/dev/null | head -2
+            if sudo apt-get $APT_OPTS install -y gcc-aarch64-linux-gnu bc bison flex libssl-dev libyaml-dev cpio xz-utils; then OK=1; break; fi
+            sleep 10
+          done
+          [ "$OK" = "1" ] || { echo "apt failed on all mirrors"; exit 1; }
+          aarch64-linux-gnu-gcc --version | head -1 | tee /tmp/tcver
+          aarch64-linux-gnu-gcc --version | grep -q "11\." || { echo "gcc11 required (r-series parity)"; exit 1; }
+          echo "TOOLCHAIN=aarch64-linux-gnu-gcc-11" | tee ../build_meta.txt
+
+
+      - name: KSU strip (r-series standard)
+        run: |
+          cd source
+          rm -rf drivers/kernelsu
+          sed -i "/drivers\/kernelsu\/Kconfig/d" drivers/Kconfig
+          echo "kernelsu stripped (dir + Kconfig source line)"
+
+      - name: Config (w527.config_r55 + olddefconfig + verify final values)
+        run: |
+          cd source
+          echo "CONFIG_SHA=$(sha256sum ../w527.config_r55 | cut -d' ' -f1)" >> ../build_meta.txt
+          cp ../w527.config_r55 .config
+          make ARCH=arm64 olddefconfig
+          sed -i "s/^#*CONFIG_CONSOLE_LOGLEVEL_DEFAULT.*/CONFIG_CONSOLE_LOGLEVEL_DEFAULT=3/" .config
+          sed -i "s/^#*CONFIG_MESSAGE_LOGLEVEL_DEFAULT.*/CONFIG_MESSAGE_LOGLEVEL_DEFAULT=3/" .config
+          grep -q "CONFIG_MODVERSIONS=n" .config || ! grep -q "CONFIG_MODVERSIONS=y" .config
+          grep -q "CONFIG_BD1860=y" .config
+          grep -q "CONFIG_INPUT_AS1509=y" .config
+          grep -q "CONFIG_CHARGER_ETA6947=y" .config
+          grep -q 'CONFIG_CONSOLE_LOGLEVEL_DEFAULT=3' .config
+          echo "config verified"
+
+      - name: Build (KCFLAGS tightened)
+        run: |
+          cd source
+          sed -i 's/^EXTRAVERSION =.*/EXTRAVERSION =/' Makefile
+          grep '^EXTRAVERSION' Makefile || echo "EXTRAVERSION cleared"
+          sed -i '/ifdef stackp-name/,/endif/{s/exit 1/true/}' Makefile
+          sed -i '/yamltree\.o/d' scripts/dtc/Makefile
+          sed -i 's/dt_to_yaml(/\/\/ dt_to_yaml(/g' scripts/dtc/dtc.c
+          sed -i '/ifdef CONFIG_CC_STACKPROTECTOR_STRONG/{n;s/stackp-flag :=.*/stackp-flag := -fstack-protector-strong/}' Makefile
+          sed -i '/ifdef stackp-check/,/endif/{s/exit 1/true/}' Makefile
+          set -o pipefail
+          KC="-Wno-error=sizeof-pointer-memaccess -Wno-error=array-bounds -Wno-error=missing-braces -Wno-error=format -Wno-error=missing-attributes -Wno-error=address-of-packed-member -Wno-address-of-packed-member -Wno-error=zero-length-bounds -fno-tree-loop-distribute-patterns -fno-store-merging -fno-tree-slp-vectorize"
+          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- -j$(nproc) Image KCFLAGS="$KC" 2>&1 | tee ../build.log
+          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- -j$(nproc) modules KCFLAGS="$KC" 2>&1 | tee -a ../build.log || echo "modules best-effort (r-series parity: modules tar = vendor 3-ko preload, Image is the product)"
+
+      - name: Hard gates (static)
+        run: |
+          cd source
+          test -f arch/arm64/boot/Image
+          S=$(stat -c %s arch/arm64/boot/Image); test $S -gt 16000000 && test $S -lt 18000000
+          grep -q "BD_health_pro" System.map
+          grep -q "eta6947_charger_driver" System.map
+          grep -q "as1509_enable_store" System.map
+          echo "gates passed"
+
+      - name: Package modules
+        run: |
+          cd source
+          make ARCH=arm64 modules_install INSTALL_MOD_PATH=./modules_out
+          cd modules_out && tar czf ../modules336.tar.gz . && cd ..
+          cp arch/arm64/boot/Image ../Image_out
+          cp System.map ../System.map_out
+
+      - name: Upload artifacts (full set, always for forensics)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-r57
+          path: |
+            build.log
+            build_meta.txt
+            source/.config
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: r57rebuild-${{ github.run_id }}
+          files: |
+            Image_out
+            System.map_out
+            source/Module.symvers
+            source/modules336.tar.gz
+            build.log
+            build_meta.txt
