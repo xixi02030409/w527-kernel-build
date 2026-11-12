@@ -1,0 +1,110 @@
+name: W527 kernel v17 (sprd official 4.14.133 base)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout workflow repo (patch carrier)
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Fetch official sprd-linux/kernel4.14 tarball (pin 02b0877)
+        run: |
+          curl -sfL --retry 3 "https://codeload.github.com/sprd-linux/kernel4.14/tar.gz/02b0877" -o src.tar.gz
+          S=$(stat -c %s src.tar.gz); echo "tarball $S bytes"; test $S -gt 100000000
+          mkdir source && tar xzf src.tar.gz -C source --strip-components=1
+          N=$(find source -type f | wc -l); echo "source files: $N"
+          test $N -gt 60000 || { echo "extract incomplete"; exit 1; }
+          echo "SOURCE_BASE=sprd-linux/kernel4.14@02b0877 (4.14.133)" | tee build_meta.txt
+
+      - name: Apply v17 W527 ABI patch (4 files, verified)
+        run: |
+          cd source
+          git apply --check ../v17_abi_w527.patch
+          git apply ../v17_abi_w527.patch
+          grep '^SUBLEVEL' Makefile | grep -q 98 || { echo "vermagic masquerade missing"; exit 1; }
+          grep -q "get_hwintf_type" include/misc/wcn_bus.h
+          echo "PATCH_APPLIED=OK" | tee ../build_meta.txt
+
+      - name: Install aarch64 cross toolchain (apt gcc-11.4, mirror rotation)
+        timeout-minutes: 14
+        run: |
+          APT_OPTS="-o Acquire::Retries=8 -o Acquire::http::Timeout=30"
+          OK=0
+          for M in "http://archive.ubuntu.com/ubuntu" "https://mirrors.kernel.org/ubuntu" "http://azure.archive.ubuntu.com/ubuntu"; do
+            echo "=== mirror: $M ==="
+            sudo grep -rl "archive.ubuntu.com" /etc/apt/sources.list /etc/apt/sources.list.d/ 2>/dev/null | sudo xargs -r sed -i "s|http://[a-z.]*archive.ubuntu.com/ubuntu|$M|g"
+            if sudo apt-get $APT_OPTS install -y gcc-aarch64-linux-gnu bc bison flex libssl-dev libyaml-dev cpio xz-utils; then OK=1; break; fi
+            sleep 10
+          done
+          [ "$OK" = "1" ] || { echo "apt failed on all mirrors"; exit 1; }
+          aarch64-linux-gnu-gcc --version | grep -q "11\." || { echo "gcc11 required"; exit 1; }
+          echo "TOOLCHAIN=aarch64-linux-gnu-gcc-11" | tee -a ../build_meta.txt
+
+      - name: Config (sp414_w527_defconfig from patch + olddefconfig)
+        run: |
+          cd source
+          make ARCH=arm64 sp414_w527_defconfig
+          grep -q "CONFIG_MODVERSIONS=y" .config && { echo "MODVERSIONS must be n (ko survival)"; exit 1; }
+          grep -q "CONFIG_SDIOHAL=y" .config || { echo "SDIOHAL required (factory wifi bus layer)"; exit 1; }
+          grep -q "CONFIG_SC23XX=y" .config || { echo "SC23XX required"; exit 1; }
+          echo "config verified" | tee -a ../build_meta.txt
+
+      - name: Build (KCFLAGS gcc11 compat)
+        run: |
+          cd source
+          sed -i 's/^EXTRAVERSION =.*/EXTRAVERSION =/' Makefile
+          sed -i '/ifdef stackp-name/,/endif/{s/exit 1/true/}' Makefile
+          sed -i '/yamltree\.o/d' scripts/dtc/Makefile
+          sed -i 's/dt_to_yaml(/\/\/ dt_to_yaml(/g' scripts/dtc/dtc.c
+          sed -i '/ifdef CONFIG_CC_STACKPROTECTOR_STRONG/{n;s/stackp-flag :=.*/stackp-flag := -fstack-protector-strong/}' Makefile
+          sed -i '/ifdef stackp-check/,/endif/{s/exit 1/true/}' Makefile
+          set -o pipefail
+          KC="-Wno-error=sizeof-pointer-memaccess -Wno-error=array-bounds -Wno-error=missing-braces -Wno-error=format -Wno-error=missing-attributes -Wno-error=address-of-packed-member -Wno-address-of-packed-member -Wno-error=zero-length-bounds -fno-tree-loop-distribute-patterns -fno-store-merging -fno-tree-slp-vectorize"
+          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- -j$(nproc) Image KCFLAGS="$KC" 2>&1 | tee ../build.log
+
+      - name: "Hard gates (v17 base: vermagic + sdiohal layer)"
+        run: |
+          cd source
+          test -f arch/arm64/boot/Image
+          S=$(stat -c %s arch/arm64/boot/Image); test $S -gt 15000000 && test $S -lt 19000000
+          strings -a arch/arm64/boot/Image | grep -q "4.14.98" || { echo "vermagic masquerade missing in Image"; exit 1; }
+          grep -q "sdiohal" System.map || { echo "sdiohal layer not built"; exit 1; }
+          echo "gates passed" | tee -a ../build_meta.txt
+
+      - name: Package
+        run: |
+          cd source
+          make ARCH=arm64 modules_install INSTALL_MOD_PATH=./modules_out
+          cd modules_out && tar czf ../modules_v17.tar.gz . && cd ..
+          cp arch/arm64/boot/Image ../Image_out
+          cp System.map ../System.map_out
+
+      - name: Upload artifacts (always for forensics)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-v17
+          path: |
+            build.log
+            build_meta.txt
+            source/.config
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v17-${{ github.run_id }}
+          files: |
+            Image_out
+            System.map_out
+            source/Module.symvers
+            source/modules_v17.tar.gz
+            build.log
+            build_meta.txt
