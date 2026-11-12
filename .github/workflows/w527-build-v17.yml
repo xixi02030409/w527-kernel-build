@@ -80,9 +80,19 @@ jobs:
           echo "=== offsets regen ==="
           cat include/generated/vdso-offsets.h
           echo "=== end offsets regen ==="
-          # W527-v17: dfs trace header path fix (BSP missed TRACE_INCLUDE_PATH;
-          # define_trace.h resolves ./ relative to include/trace/)
-          python3 -c "p='drivers/devfreq/sprd/sprd_dfs_trace.h'; t=open(p).read(); t=t.replace('#define TRACE_INCLUDE_PATH .','#define TRACE_INCLUDE_PATH ../../drivers/devfreq/sprd'); open(p,'w').write(t)"
+          # W527-v17: fix ALL BSP trace headers with PATH=. (dfs/ptm/... one nest)
+          python3 - <<'PYFIX'
+import subprocess, os
+out = subprocess.run(['grep','-rl','-E','define TRACE_INCLUDE_PATH \.\\s*$','--include=*.h','.'],capture_output=True,text=True).stdout.split()
+for h in out:
+    h = h[2:]  # strip ./
+    rel = os.path.relpath(os.path.dirname(h), 'include/trace')
+    t = open(h).read()
+    t = t.replace('#define TRACE_INCLUDE_PATH .', '#define TRACE_INCLUDE_PATH '+rel)
+    open(h,'w').write(t)
+    print('fixed:', h, '->', rel)
+print('total fixed:', len(out))
+PYFIX
           set -o pipefail
           KC="-Wno-error=restrict -Wno-error=builtin-declaration-mismatch -Wno-error=sizeof-pointer-memaccess -Wno-error=array-bounds -Wno-error=missing-braces -Wno-error=format -Wno-error=missing-attributes -Wno-error=address-of-packed-member -Wno-address-of-packed-member -Wno-error=zero-length-bounds -fno-tree-loop-distribute-patterns -fno-store-merging -fno-tree-slp-vectorize"
           make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- -j$(nproc) Image KCFLAGS="$KC" 2>&1 | tee ../build.log
