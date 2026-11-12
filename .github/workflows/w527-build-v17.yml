@@ -84,7 +84,7 @@ jobs:
           # define_trace.h resolves ./ relative to include/trace/)
           python3 -c "p='drivers/devfreq/sprd/sprd_dfs_trace.h'; t=open(p).read(); t=t.replace('#define TRACE_INCLUDE_PATH .','#define TRACE_INCLUDE_PATH ../../drivers/devfreq/sprd'); open(p,'w').write(t)"
           set -o pipefail
-          KC="-Wno-error=builtin-declaration-mismatch -Wno-error=sizeof-pointer-memaccess -Wno-error=array-bounds -Wno-error=missing-braces -Wno-error=format -Wno-error=missing-attributes -Wno-error=address-of-packed-member -Wno-address-of-packed-member -Wno-error=zero-length-bounds -fno-tree-loop-distribute-patterns -fno-store-merging -fno-tree-slp-vectorize"
+          KC="-Wno-error=restrict -Wno-error=builtin-declaration-mismatch -Wno-error=sizeof-pointer-memaccess -Wno-error=array-bounds -Wno-error=missing-braces -Wno-error=format -Wno-error=missing-attributes -Wno-error=address-of-packed-member -Wno-address-of-packed-member -Wno-error=zero-length-bounds -fno-tree-loop-distribute-patterns -fno-store-merging -fno-tree-slp-vectorize"
           make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- -j$(nproc) Image KCFLAGS="$KC" 2>&1 | tee ../build.log
 
       - name: "Hard gates (v17 base: vermagic + sdiohal layer)"
