@@ -82,7 +82,6 @@ jobs:
           echo "=== end offsets regen ==="
           # W527-v17: fix ALL BSP trace headers with PATH=. (dfs/ptm/... one sweep)
           python3 -c "import subprocess,os; out=subprocess.run(['grep','-rl','-E','define TRACE_INCLUDE_PATH \\.\\s*$','--include=*.h','.'],capture_output=True,text=True).stdout.split(); [(lambda h,f: open(h,'w').write(chr(10).join([('#define TRACE_INCLUDE_PATH '+os.path.relpath(os.path.dirname(h),'include/trace')) if l.strip()=='#define TRACE_INCLUDE_PATH .' else l for l in f.split(chr(10))])))(h[2:],open(h[2:]).read()) for h in out]; print('fixed:',len(out))"
-          sed -i 's|#define TRACE_INCLUDE_PATH \.|#define TRACE_INCLUDE_PATH ../../arch/arm64/kernel|' arch/arm64/kernel/trace-events-emulation.h && echo "emulation trace path fixed"
           tail -6 arch/arm64/kernel/trace-events-emulation.h | cat -A
           set -o pipefail
           KC="-Wno-error=restrict -Wno-error=builtin-declaration-mismatch -Wno-error=sizeof-pointer-memaccess -Wno-error=array-bounds -Wno-error=missing-braces -Wno-error=format -Wno-error=missing-attributes -Wno-error=address-of-packed-member -Wno-address-of-packed-member -Wno-error=zero-length-bounds -fno-tree-loop-distribute-patterns -fno-store-merging -fno-tree-slp-vectorize"
