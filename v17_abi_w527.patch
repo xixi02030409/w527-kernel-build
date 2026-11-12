@@ -13,32 +13,25 @@
  
 --- a/include/misc/wcn_bus.h
 +++ b/include/misc/wcn_bus.h
-@@ -96,6 +96,15 @@
+@@ -96,6 +96,8 @@
  	unsigned int type:4;
  }; /* 32bits public header */
  
 +/* W527-v17: factory vendor ko reads this slot at ops+0x20 (call histogram
-+ * verified); enum + member added for ABI parity with factory kernel. */
-+enum wcn_hard_intf_type {
-+	HW_TYPE_SDIO,
-+	HW_TYPE_PCIE,
-+	HW_TYPE_SIPC,
-+	HW_TYPE_INVALIED
-+};
-+
++ * verified). Returns HW_TYPE_* int (already #defined at top of this file). */
  struct sprdwcn_bus_ops {
  	int (*preinit)(void);
  	void (*deinit)(void);
-@@ -103,7 +112,7 @@
+@@ -103,7 +105,7 @@
  	int (*chn_init)(struct mchn_ops_t *ops);
  	int (*chn_deinit)(struct mchn_ops_t *ops);
  
 -	int (*get_bus_status)(void);
-+	enum wcn_hard_intf_type (*get_hwintf_type)(void);
++	int (*get_hwintf_type)(void);
  
  	/*
  	 * For sdio:
-@@ -118,6 +127,11 @@
+@@ -118,6 +120,11 @@
  	/* For sdio: TX(send data) and RX(give back list to SDIO) */
  	int (*push_list)(int chn, struct mbuf_t *head,
  			 struct mbuf_t *tail, int num);
@@ -58,7 +51,7 @@
  
 +/* W527-v17: factory vendor ko calls ops+0x20 expecting the hard-intf type.
 + * SDIO bus on this platform; enum added in include/misc/wcn_bus.h. */
-+static enum wcn_hard_intf_type sdio_get_hwintf_type(void)
++static int sdio_get_hwintf_type(void)
 +{
 +	return HW_TYPE_SDIO;
 +}
