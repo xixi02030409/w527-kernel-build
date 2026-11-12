@@ -74,6 +74,12 @@ jobs:
           aarch64-linux-gnu-nm arch/arm64/kernel/vdso/vdso.so.dbg 2>/dev/null | grep -i vdso_ || echo "NO VDSO_ SYMBOLS IN .dbg"
           cat include/generated/vdso-offsets.h 2>/dev/null || echo "vdso-offsets.h MISSING"
           echo "=== end vdso debug ==="
+          # W527-v17: force-regenerate vdso-offsets.h (Kbuild gen chain came
+          # out empty on this tree; explicit NM|gen|sort guarantees content)
+          aarch64-linux-gnu-nm arch/arm64/kernel/vdso/vdso.so.dbg | sh arch/arm64/kernel/vdso/gen_vdso_offsets.sh | LC_ALL=C sort > include/generated/vdso-offsets.h || true
+          echo "=== offsets regen ==="
+          cat include/generated/vdso-offsets.h
+          echo "=== end offsets regen ==="
           set -o pipefail
           KC="-Wno-error=sizeof-pointer-memaccess -Wno-error=array-bounds -Wno-error=missing-braces -Wno-error=format -Wno-error=missing-attributes -Wno-error=address-of-packed-member -Wno-address-of-packed-member -Wno-error=zero-length-bounds -fno-tree-loop-distribute-patterns -fno-store-merging -fno-tree-slp-vectorize"
           make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- -j$(nproc) Image KCFLAGS="$KC" 2>&1 | tee ../build.log
