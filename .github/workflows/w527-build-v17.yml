@@ -82,7 +82,7 @@ jobs:
           echo "=== end offsets regen ==="
           # W527-v17: dfs trace header path fix (BSP missed TRACE_INCLUDE_PATH;
           # define_trace.h resolves ./ relative to include/trace/)
-          python3 -c "p='drivers/devfreq/sprd/sprd_dfs_trace.h'; t=open(p).read(); t += chr(10)+'#undef TRACE_INCLUDE_PATH'+chr(10)+'#define TRACE_INCLUDE_PATH ../../drivers/devfreq/sprd'+chr(10)+'#undef TRACE_INCLUDE_FILE'+chr(10)+'#define TRACE_INCLUDE_FILE sprd_dfs_trace'+chr(10) if 'TRACE_INCLUDE_PATH' not in t else t; open(p,'w').write(t)"
+          python3 -c "p='drivers/devfreq/sprd/sprd_dfs_trace.h'; t=open(p).read(); ins=chr(10)+'#undef TRACE_INCLUDE_PATH'+chr(10)+'#define TRACE_INCLUDE_PATH ../../drivers/devfreq/sprd'+chr(10)+'#undef TRACE_INCLUDE_FILE'+chr(10)+'#define TRACE_INCLUDE_FILE sprd_dfs_trace'+chr(10); k=t.find('#include <trace/define_trace.h>'); t=t[:k]+ins+t[k:] if ('TRACE_INCLUDE_PATH' not in t and k>=0) else t; open(p,'w').write(t)"
           set -o pipefail
           KC="-Wno-error=builtin-declaration-mismatch -Wno-error=sizeof-pointer-memaccess -Wno-error=array-bounds -Wno-error=missing-braces -Wno-error=format -Wno-error=missing-attributes -Wno-error=address-of-packed-member -Wno-address-of-packed-member -Wno-error=zero-length-bounds -fno-tree-loop-distribute-patterns -fno-store-merging -fno-tree-slp-vectorize"
           make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- -j$(nproc) Image KCFLAGS="$KC" 2>&1 | tee ../build.log
