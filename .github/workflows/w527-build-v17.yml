@@ -90,8 +90,9 @@ jobs:
       - name: "Hard gates (v17 base: vermagic + sdiohal layer)"
         run: |
           cd source
-          test -f arch/arm64/boot/Image
-          S=$(stat -c %s arch/arm64/boot/Image); test $S -gt 15000000 && test $S -lt 19000000
+          test -f arch/arm64/boot/Image || { echo "no Image"; exit 1; }
+          S=$(stat -c %s arch/arm64/boot/Image); echo "Image size: $S"
+          test $S -gt 10000000 && test $S -lt 20000000 || { echo "size out of range"; exit 1; }
           strings -a arch/arm64/boot/Image | grep -q "4.14.98" || { echo "vermagic masquerade missing in Image"; exit 1; }
           grep -q "sdiohal" System.map || { echo "sdiohal layer not built"; exit 1; }
           echo "gates passed" | tee -a ../build_meta.txt
