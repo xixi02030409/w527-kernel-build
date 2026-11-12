@@ -65,6 +65,17 @@
  	.list_alloc = sdio_buf_list_alloc,
  	.list_free = sdio_buf_list_free,
  	.push_list = sdio_list_push,
+--- a/arch/arm64/kernel/trace-events-emulation.h
++++ b/arch/arm64/kernel/trace-events-emulation.h
+@@ -30,7 +30,7 @@
+ /* This part must be outside protection */
+ #undef TRACE_INCLUDE_PATH
+ #undef TRACE_INCLUDE_FILE
+-#define TRACE_INCLUDE_PATH .
++#define TRACE_INCLUDE_PATH ../../arch/arm64/kernel./../arch/arm64/kernel
+ 
+ #define TRACE_INCLUDE_FILE trace-events-emulation
+ #include <trace/define_trace.h>
 --- /dev/null
 +++ b/arch/arm64/configs/sp414_w527_defconfig
 @@ -0,0 +1,4640 @@
