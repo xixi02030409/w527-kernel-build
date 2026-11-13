@@ -458,7 +458,7 @@
 +	if (!psy)
 +		return -ENODEV;
 +
-+	ret = power_supply_get_battery_info(psy, &bat_info);
++	ret = power_supply_get_battery_info(psy, &bat_info, 1);
 +	if (!ret && cv_mv)
 +		*cv_mv = bat_info.constant_charge_voltage_max_uv / 1000;
 +	power_supply_put_battery_info(psy, &bat_info);
