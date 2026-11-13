@@ -59,6 +59,12 @@ jobs:
           grep -q "CONFIG_MODVERSIONS=y" .config && { echo "MODVERSIONS must be n (ko survival)"; exit 1; }
           grep -q "CONFIG_SDIOHAL=y" .config || { echo "SDIOHAL required (factory wifi bus layer)"; exit 1; }
           grep -q "CONFIG_SC23XX=y" .config || { echo "SC23XX required"; exit 1; }
+          echo "=== chain diag ==="
+          grep -c ETA6947 drivers/power/supply/Kconfig drivers/power/supply/Makefile drivers/power/supply/eta6947-charger.c
+          grep -c QMC6308 drivers/input/misc/Kconfig
+          grep CHARGER_ETA6947 .config
+          grep SENSORS_QMC6308 .config
+          echo "=== end chain diag ==="
           echo "config verified" | tee -a ../build_meta.txt
 
       - name: Build (KCFLAGS gcc11 compat)
