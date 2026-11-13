@@ -1718,6 +1718,10 @@
 +	help
 +	  QMC6308 compass for W527 (compatible "qmc,qmc6308").
 --- /dev/null
++++ b/drivers/input/misc/qmc6308/Makefile
+@@ -0,0 +1 @@
++obj-$(CONFIG_SENSORS_QMC6308) += qmc6308.o
+--- /dev/null
 +++ b/drivers/input/misc/qmc6308/qmc6308.c
 @@ -0,0 +1,1334 @@
 +/* drivers/misc/qmc6308.c - qmc compass driver
