@@ -87,17 +87,17 @@
 +obj-$(CONFIG_CHARGER_SC2721)	+= sc2721_charger.oobj-$(CONFIG_CHARGER_ETA6947)	+= eta6947-charger.o
 --- a/drivers/power/supply/Kconfig
 +++ b/drivers/power/supply/Kconfig
-@@ -672,4 +672,9 @@
- 	  Say Y here to enable support for fast charging with SC2730
+@@ -673,3 +673,10 @@
  	  PMIC chips.
  
--endif # POWER_SUPPLY
+ endif # POWER_SUPPLY
++
 +config CHARGER_ETA6947
 +	tristate "ETA6947 battery charger driver"
++	depends on POWER_SUPPLY
 +	help
 +	  Say Y here to enable support for the ETA6947 standalone
 +	  battery charger.
-+endif # POWER_SUPPLY
 \ No newline at end of file
 --- a/drivers/input/misc/Makefile
 +++ b/drivers/input/misc/Makefile
