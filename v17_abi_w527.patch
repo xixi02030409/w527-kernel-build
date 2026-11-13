@@ -87,16 +87,18 @@
 +obj-$(CONFIG_CHARGER_SC2721)	+= sc2721_charger.oobj-$(CONFIG_CHARGER_ETA6947)	+= eta6947-charger.o
 --- a/drivers/power/supply/Kconfig
 +++ b/drivers/power/supply/Kconfig
-@@ -673,3 +673,9 @@
+@@ -672,4 +672,9 @@
+ 	  Say Y here to enable support for fast charging with SC2730
  	  PMIC chips.
  
- endif # POWER_SUPPLY
-+
+-endif # POWER_SUPPLY
 +config CHARGER_ETA6947
 +	tristate "ETA6947 battery charger driver"
 +	help
 +	  Say Y here to enable support for the ETA6947 standalone
 +	  battery charger.
++endif # POWER_SUPPLY
+\ No newline at end of file
 --- a/drivers/input/misc/Makefile
 +++ b/drivers/input/misc/Makefile
 @@ -90,4 +90,4 @@
@@ -108,12 +110,14 @@
 +obj-$(CONFIG_INPUT_ST480)  += st480/obj-$(CONFIG_SENSORS_QMC6308) += qmc6308/
 --- a/drivers/input/misc/Kconfig
 +++ b/drivers/input/misc/Kconfig
-@@ -871,3 +871,5 @@
+@@ -870,4 +870,5 @@
+ 	  To compile this driver as a module, choose M here. The module will
  	  be called sc27xx_vibra.
  
- endif
-+
+-endif
 +source "drivers/input/misc/qmc6308/Kconfig"
++endif
+\ No newline at end of file
 --- /dev/null
 +++ b/drivers/power/supply/eta6947-charger.c
 @@ -0,0 +1,1587 @@
