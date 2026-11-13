@@ -110,13 +110,11 @@
 +obj-$(CONFIG_INPUT_ST480)  += st480/obj-$(CONFIG_SENSORS_QMC6308) += qmc6308/
 --- a/drivers/input/misc/Kconfig
 +++ b/drivers/input/misc/Kconfig
-@@ -870,4 +870,5 @@
- 	  To compile this driver as a module, choose M here. The module will
+@@ -871,3 +871,4 @@
  	  be called sc27xx_vibra.
  
--endif
+ endif
 +source "drivers/input/misc/qmc6308/Kconfig"
-+endif
 \ No newline at end of file
 --- /dev/null
 +++ b/drivers/power/supply/eta6947-charger.c
