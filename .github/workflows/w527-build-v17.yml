@@ -51,7 +51,9 @@ jobs:
       - name: Config (sp414_w527_defconfig from patch + olddefconfig)
         run: |
           cd source
-          make ARCH=arm64 sp414_w527_defconfig
+          # v17 slim: r57 config baseline (16.9M proven) + olddefconfig
+          cp ../w527.config_r55 .config
+          make ARCH=arm64 olddefconfig
           grep -q "CONFIG_MODVERSIONS=y" .config && { echo "MODVERSIONS must be n (ko survival)"; exit 1; }
           grep -q "CONFIG_SDIOHAL=y" .config || { echo "SDIOHAL required (factory wifi bus layer)"; exit 1; }
           grep -q "CONFIG_SC23XX=y" .config || { echo "SC23XX required"; exit 1; }
