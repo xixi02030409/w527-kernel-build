@@ -1,0 +1,17 @@
+--- a/fs/f2fs/super.c
++++ b/fs/f2fs/super.c
+@@ -382,6 +382,14 @@
+ 		if (!*p)
+ 			continue;
+ 		/*
++		 * W527-v17: A11 vendor fstab mounts /data with "inlinecrypt"
++		 * (factory 4.14.98 has BLK_INLINE_ENCRYPTION backport; upstream
++		 * sprd 4.14.133 does not). Accept the option and fall back to
++		 * software fscrypt -- same data format, same keys.
++		 */
++		if (!strcmp(p, "inlinecrypt"))
++			continue;
++		/*
+ 		 * Initialize args struct so we know whether arg was
+ 		 * found; some options take optional arguments.
+ 		 */
