@@ -103,6 +103,8 @@ jobs:
           set -o pipefail
           KC="-Wno-error=restrict -Wno-error=builtin-declaration-mismatch -Wno-error=sizeof-pointer-memaccess -Wno-error=array-bounds -Wno-error=missing-braces -Wno-error=format -Wno-error=missing-attributes -Wno-error=address-of-packed-member -Wno-address-of-packed-member -Wno-error=zero-length-bounds -fno-tree-loop-distribute-patterns -fno-store-merging -fno-tree-slp-vectorize"
           make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- -j$(nproc) Image KCFLAGS="$KC" 2>&1 | tee ../build.log
+          # v17: build =m modules (eta6947/qmc6308 deferred-probe kos)
+          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- -j$(nproc) modules KCFLAGS="$KC" 2>&1 | tail -5
 
       - name: "Hard gates (v17 base: vermagic + sdiohal layer)"
         run: |
