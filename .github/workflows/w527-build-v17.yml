@@ -41,6 +41,14 @@ jobs:
           grep -q "inlinecrypt" fs/f2fs/super.c
           echo "F2FS_INLINECRYPT_OK" >> ../build_meta.txt
 
+      - name: Apply vermagic modversions tag patch (vendor ko load)
+        run: |
+          cd source
+          git apply --check ../v17_vermagic_modversions.patch
+          git apply ../v17_vermagic_modversions.patch
+          grep -q "MODULE_VERMAGIC_MODVERSIONS \"modversions \"" include/linux/vermagic.h
+          echo "VERMAGIC_MODVERSIONS_OK" >> ../build_meta.txt
+
       - name: Install aarch64 cross toolchain (apt gcc-11.4, mirror rotation)
         timeout-minutes: 14
         run: |
