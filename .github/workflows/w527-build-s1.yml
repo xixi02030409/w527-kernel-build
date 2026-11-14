@@ -28,7 +28,7 @@ jobs:
 
       - name: Clone base tree (ZDC uws6152 4.14.98, branch r56v2)
         run: |
-          git clone --depth=1 --branch r56v2 \
+          git clone --depth=1 --branch w527-rebuild-1115 \
             https://github.com/xixi02030409/android_uws6152_4.14.98.git source
           cd source
           git log --oneline -1
@@ -49,6 +49,10 @@ jobs:
           grep -q "get_bus_status" include/misc/wcn_bus.h && echo "note: get_bus_status reference present (comment only?)" || true
           grep -q "W527 ABI fix: get_bus_status member REMOVED" include/misc/wcn_bus.h || { echo "AUDIT FAIL: wcn_bus ABI fix missing"; exit 1; }
           echo "wcn_bus ABI fix: OK"
+          if grep -q "end_cac" net/wireless/rdev-ops.h; then echo "AUDIT FAIL: dead rdev_end_cac stub still present"; exit 1; fi
+          echo "dead rdev_end_cac stub: removed OK"
+          if grep -q "is_amsdu" include/net/cfg80211.h; then echo "AUDIT FAIL: half-applied exthdr signature backport"; exit 1; fi
+          echo "half-applied exthdr backport: reverted OK"
 
       - name: Apply S1 config (4 self-drivers off)
         run: |
