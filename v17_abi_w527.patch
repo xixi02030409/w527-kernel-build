@@ -78,13 +78,27 @@
  #include <trace/define_trace.h>
 --- a/drivers/power/supply/Makefile
 +++ b/drivers/power/supply/Makefile
-@@ -91,4 +91,4 @@
+@@ -91,4 +91,5 @@
  obj-$(CONFIG_CHARGER_SC2720)	+= sc2720_charger.o
  obj-$(CONFIG_CHARGER_SC2721)	+= sc2721_charger.o
  obj-$(CONFIG_FAST_CHARGER_SC2730) += sc2730_fast_charger.o
 -obj-$(CONFIG_CHARGER_SC2721)	+= sc2721_charger.o
 \ No newline at end of file
 +obj-$(CONFIG_CHARGER_SC2721)	+= sc2721_charger.o
++obj-$(CONFIG_CHARGER_ETA6947)	+= eta6947-charger.o
+--- a/drivers/power/supply/Kconfig
++++ b/drivers/power/supply/Kconfig
+@@ -673,3 +673,10 @@
+ 	  PMIC chips.
+ 
+ endif # POWER_SUPPLY
++
++config CHARGER_ETA6947
++	tristate "ETA6947 battery charger driver"
++	depends on POWER_SUPPLY
++	help
++	  Say Y here to enable support for the ETA6947 standalone
++	  battery charger.
 --- a/drivers/input/misc/Makefile
 +++ b/drivers/input/misc/Makefile
 @@ -90,4 +90,5 @@
