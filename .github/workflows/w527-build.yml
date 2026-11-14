@@ -78,8 +78,10 @@ jobs:
           sed -i '/ifdef stackp-check/,/endif/{s/exit 1/true/}' Makefile
           export ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu-
           make olddefconfig
-          echo "=== must be n (Stage 1 turns them off) ==="
-          for s in TOUCHSCREEN_HYNITRON_TS SENSORS_QMC6308 SENSORS_MIR3DA CHARGER_ETA6947; do
+          echo "=== must stay n (drivers not yet staged in) ==="
+          # 触摸在 Stage 2-T1 起按阶段开启，由 require_config 输入单独强制；
+          # 这里只守住"还没到阶段"的那三颗，避免一次改多个变量。
+          for s in SENSORS_QMC6308 SENSORS_MIR3DA CHARGER_ETA6947; do
             if grep -q "^CONFIG_$s=" .config; then echo "AUDIT FAIL: $s still enabled"; exit 1; fi
             echo "  $s : off OK"
           done
