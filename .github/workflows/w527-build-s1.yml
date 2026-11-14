@@ -112,11 +112,15 @@ jobs:
           # MODULE_INIT_IGNORE_MODVERSIONS / MODULE_INIT_IGNORE_VERMAGIC，
           # 于是 vermagic[] 无引用被编译器丢弃 -> Image 里没有 vermagic 字符串是【预期行为】。
           # 本树不能用 "Image 含 vermagic" 做判据；改判 source 层行为 + 三条硬指标。
-          print("note: vermagic array dropped by design (force-load) - not an error")
+          want = b"4.14.98 SMP preempt mod_unload modversions aarch64"
+          if want not in d:
+              print("AUDIT FAIL: exact vermagic string absent from Image")
+              sys.exit(1)
+          print("VERMAGIC PRESENT:", want.decode())
           PY
-          grep -q "MODULE_INIT_IGNORE_VERMAGIC" kernel/module.c || { echo "AUDIT FAIL: force-load behaviour changed (vermagic gate may now apply)"; exit 1; }
-          grep -q "MODULE_INIT_IGNORE_MODVERSIONS" kernel/module.c || { echo "AUDIT FAIL: modversions force-load missing"; exit 1; }
-          echo "force-load behaviour: present OK (documented deviation from factory)"
+          if grep -q "flags |= MODULE_INIT_IGNORE_VERMAGIC" kernel/module.c; then echo "AUDIT FAIL: ZDC force-load bypass still present"; exit 1; fi
+          if grep -q "flags |= MODULE_INIT_IGNORE_MODVERSIONS" kernel/module.c; then echo "AUDIT FAIL: ZDC force-load bypass still present"; exit 1; fi
+          echo "vermagic enforcement: ACTIVE (bypass removed) OK"
           ls -l System.map
           ls -l System.map
 
