@@ -80,11 +80,10 @@ jobs:
           # v17 fix: generate vdso-offsets.h BEFORE object build (UNISOC
           # signal.c sigtramp needs it; -j race with vdso_prepare otherwise)
           echo "=== make-layer diag ==="
-          grep CHARGER_ETA6947 .config
-          grep SENSORS_QMC6308 .config
-          ls drivers/power/supply/ | grep -i eta
+          grep CHARGER_ETA6947 .config || echo "(eta6947 dropped by bisect)"
+          grep SENSORS_QMC6308 .config || echo "QMC6308 missing!"
           ls drivers/input/misc/qmc6308/
-          grep -n "ETA6947\|qmc6308" drivers/power/supply/Makefile drivers/input/misc/Makefile
+          grep -n "qmc6308" drivers/input/misc/Makefile
           echo "=== end make-layer diag ==="
           make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- prepare
           echo "=== vdso debug ==="
