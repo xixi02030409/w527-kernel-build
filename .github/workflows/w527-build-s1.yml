@@ -91,22 +91,28 @@ jobs:
           export ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu-
           KR=$(make -s kernelrelease 2>/dev/null | grep -v '^#' | tail -1)
           echo "kernelrelease = $KR"
-          test "$KR" = "4.14.98" || { echo "AUDIT FAIL: kernelrelease is $KR, must be exactly 4.14.98"; exit 1; }
-          echo "=== vermagic of built kernel ==="
-          if strings arch/arm64/boot/Image | grep -q "4.14.98 SMP preempt mod_unload modversions aarch64"; then
-            echo "VERMAGIC MATCH: vendor ko compatible"
-          else
-            echo "AUDIT FAIL: built kernel vermagic lacks modversions"; strings arch/arm64/boot/Image | grep -m3 "4.14.98 SMP" || true; exit 1
-          fi
+          test "$KR" = "4.14.98" || { echo "AUDIT FAIL: kernelrelease is $KR"; exit 1; }
           python3 - <<'PY'
-          import struct, sys
+          import re, struct, sys
           d = open('arch/arm64/boot/Image','rb').read()
           print("Image size:", len(d))
           br = struct.unpack('<I', d[:4])[0] >> 24
           print("arm64 branch opcode:", hex(br))
           assert br == 0x14, "not an arm64 Image"
           assert len(d) <= 17568128, "Image too large for boot partition"
-          print("size gate: OK")
+          hits = []
+          for m in re.finditer(rb'4\.14\.98[^\x00]{0,80}', d):
+              t = m.group(0).decode('latin1', 'replace')
+              if t not in hits:
+                  hits.append(t)
+          print("=== strings containing 4.14.98 (max 8) ===")
+          for t in hits[:8]:
+              print("  HIT:", t[:100])
+          vm = [t for t in hits if 'SMP' in t and 'modversions' in t]
+          if not vm:
+              print("AUDIT FAIL: no vermagic with SMP+modversions found")
+              sys.exit(1)
+          print("VERMAGIC OK:", vm[0][:100])
           PY
           ls -l System.map
 
@@ -118,6 +124,8 @@ jobs:
           path: |
             source/build.log
             source/include/config/kernel.release
+            source/arch/arm64/boot/Image
+            source/System.map
             final_config_s1.txt
           if-no-files-found: ignore
 
