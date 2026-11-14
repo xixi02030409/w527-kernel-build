@@ -20,6 +20,10 @@ on:
         description: 'grep -q pattern that MUST exist in final .config (empty = skip)'
         required: false
         default: ''
+      forbid_config:
+        description: 'space-separated CONFIG symbols that MUST stay off (not yet staged)'
+        required: false
+        default: ''
 
 permissions:
   contents: write
@@ -78,13 +82,12 @@ jobs:
           sed -i '/ifdef stackp-check/,/endif/{s/exit 1/true/}' Makefile
           export ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu-
           make olddefconfig
-          echo "=== must stay n (drivers not yet staged in) ==="
-          # 触摸在 Stage 2-T1 起按阶段开启，由 require_config 输入单独强制；
-          # 这里只守住"还没到阶段"的那三颗，避免一次改多个变量。
-          for s in SENSORS_QMC6308 SENSORS_MIR3DA CHARGER_ETA6947; do
+          echo "=== must stay off (from forbid_config input) ==="
+          for s in ${{ inputs.forbid_config }}; do
             if grep -q "^CONFIG_$s=" .config; then echo "AUDIT FAIL: $s still enabled"; exit 1; fi
             echo "  $s : off OK"
           done
+          echo "(forbid list: '${{ inputs.forbid_config }}')
           echo "=== must be y (baseline survival kit) ==="
           grep -E "^CONFIG_(F2FS_FS|FS_ENCRYPTION|WCN_WLAN|FUEL_GAUGE_SC27XX)=" .config
           echo "=== MODVERSIONS must be n ==="
