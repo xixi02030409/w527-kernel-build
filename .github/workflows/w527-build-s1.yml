@@ -1,0 +1,133 @@
+name: W527 kernel S1 (bare baseline, 4 self-drivers OFF)
+
+# Stage 1 of 内核重建 (see w527_文档/内核重建_基座总账与计划_20261115.md)
+# 基座 = ZDC uws6152 4.14.98, branch r56v2 (3e4e0d143)
+# config = w527_s1.config = w527_r56_v1.config 原样, 仅 4 个自研驱动改 n
+# 目的 = 得到"只有基座"的最小起机基线; 验收 boot_completed / /data / lsmod 14 ko
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout config carrier
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Install host deps and aarch64 toolchain
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y bc bison flex libssl-dev make gcc libyaml-dev cpio xz-utils gcc-aarch64-linux-gnu
+          aarch64-linux-gnu-gcc --version | head -1
+
+      - name: Clone base tree (ZDC uws6152 4.14.98, branch r56v2)
+        run: |
+          git clone --depth=1 --branch r56v2 \
+            https://github.com/xixi02030409/android_uws6152_4.14.98.git source
+          cd source
+          git log --oneline -1
+
+      - name: Pre-flight identity gates
+        run: |
+          cd source
+          sed -i 's/^EXTRAVERSION =.*/EXTRAVERSION =/' Makefile
+          echo "=== version lines ==="
+          grep -E "^(VERSION|PATCHLEVEL|SUBLEVEL|EXTRAVERSION)" Makefile
+          grep -q "^SUBLEVEL = 98$" Makefile || { echo "AUDIT FAIL: SUBLEVEL != 98"; exit 1; }
+          grep -q 'MODULE_VERMAGIC_MODVERSIONS "modversions "' include/linux/vermagic.h || { echo "AUDIT FAIL: vermagic tag missing"; exit 1; }
+          echo "vermagic tag: OK"
+          grep -q "Accept inlinecrypt" fs/f2fs/super.c || { echo "AUDIT FAIL: inlinecrypt shim missing"; exit 1; }
+          echo "f2fs inlinecrypt shim: OK"
+          test ! -e drivers/kernelsu || { echo "AUDIT FAIL: kernelsu present"; exit 1; }
+          echo "kernelsu: absent OK"
+          grep -q "get_bus_status" include/misc/wcn_bus.h && echo "note: get_bus_status reference present (comment only?)" || true
+          grep -q "W527 ABI fix: get_bus_status member REMOVED" include/misc/wcn_bus.h || { echo "AUDIT FAIL: wcn_bus ABI fix missing"; exit 1; }
+          echo "wcn_bus ABI fix: OK"
+
+      - name: Apply S1 config (4 self-drivers off)
+        run: |
+          cd source
+          cp ../w527_s1.config .config
+          sed -i '/yamltree\.o/d' scripts/dtc/Makefile
+          sed -i 's/dt_to_yaml(/\/\/ dt_to_yaml(/g' scripts/dtc/dtc.c
+          sed -i '/ifdef CONFIG_CC_STACKPROTECTOR_STRONG/{n;s/stackp-flag :=.*/stackp-flag := -fstack-protector-strong/}' Makefile
+          sed -i '/ifdef stackp-name/,/endif/{s/exit 1/true/}' Makefile
+          sed -i '/ifdef stackp-check/,/endif/{s/exit 1/true/}' Makefile
+          export ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu-
+          make olddefconfig
+          echo "=== must be n (Stage 1 turns them off) ==="
+          for s in TOUCHSCREEN_HYNITRON_TS SENSORS_QMC6308 SENSORS_MIR3DA CHARGER_ETA6947; do
+            if grep -q "^CONFIG_$s=" .config; then echo "AUDIT FAIL: $s still enabled"; exit 1; fi
+            echo "  $s : off OK"
+          done
+          echo "=== must be y (baseline survival kit) ==="
+          grep -E "^CONFIG_(F2FS_FS|FS_ENCRYPTION|WCN_WLAN|FUEL_GAUGE_SC27XX)=" .config
+          echo "=== MODVERSIONS must be n ==="
+          grep -q "^# CONFIG_MODVERSIONS is not set" .config || { echo "AUDIT FAIL: MODVERSIONS not disabled"; exit 1; }
+          cp .config ../final_config_s1.txt
+
+      - name: Build Image
+        run: |
+          cd source
+          export ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu-
+          KCFLAGS="-Wno-error=sizeof-pointer-memaccess -Wno-error=array-bounds -Wno-error=missing-braces -Wno-error=format -Wno-error=missing-attributes -Wno-error=address-of-packed-member -Wno-address-of-packed-member -Wno-error=zero-length-bounds -fno-tree-loop-distribute-patterns -fno-store-merging -fno-tree-slp-vectorize"
+          set -o pipefail
+          make -j$(nproc) Image KCFLAGS="$KCFLAGS" 2>&1 | tee build.log
+          ls -l arch/arm64/boot/Image
+
+      - name: Post-build audit gates
+        run: |
+          cd source
+          export ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu-
+          KR=$(make -s kernelrelease 2>/dev/null | grep -v '^#' | tail -1)
+          echo "kernelrelease = $KR"
+          test "$KR" = "4.14.98" || { echo "AUDIT FAIL: kernelrelease is $KR, must be exactly 4.14.98"; exit 1; }
+          echo "=== vermagic of built kernel ==="
+          if strings arch/arm64/boot/Image | grep -q "4.14.98 SMP preempt mod_unload modversions aarch64"; then
+            echo "VERMAGIC MATCH: vendor ko compatible"
+          else
+            echo "AUDIT FAIL: built kernel vermagic lacks modversions"; strings arch/arm64/boot/Image | grep -m3 "4.14.98 SMP" || true; exit 1
+          fi
+          python3 - <<'PY'
+          import struct, sys
+          d = open('arch/arm64/boot/Image','rb').read()
+          print("Image size:", len(d))
+          br = struct.unpack('<I', d[:4])[0] >> 24
+          print("arm64 branch opcode:", hex(br))
+          assert br == 0x14, "not an arm64 Image"
+          assert len(d) <= 17568128, "Image too large for boot partition"
+          print("size gate: OK")
+          PY
+          ls -l System.map
+
+      - name: Upload build log and config (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-s1
+          path: |
+            source/build.log
+            source/include/config/kernel.release
+            final_config_s1.txt
+          if-no-files-found: ignore
+
+      - name: Upload release artifacts
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: build-s1-${{ github.run_id }}
+          name: W527 S1 bare baseline ${{ github.run_id }}
+          files: |
+            source/arch/arm64/boot/Image
+            source/System.map
+            source/build.log
+            final_config_s1.txt
+          draft: false
+          prerelease: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
