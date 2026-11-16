@@ -1,0 +1,151 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+//
+// W527 (Unisoc UMS312 / sharkl5, board 1h10) V-line minimal bring-up DT
+//
+// V1 scope: boot to serial console (UART1 @ 0x70100000).
+// Clock closure: ext-26m -> apapb_gate (syscon ap_apb_regs) -> ap_clk
+// (own reg 0x20200000) -> uart1. All fw_name parents of these domains are
+// "ext-26m" only (internal parents are clk_hw pointers in ums312-clk.c).
+// Pinctrl intentionally omitted: bootloader already muxes UART1 pins.
+// Everything else (mmc/pmics/display/touch...) arrives in V2+ stages.
+
+/dts-v1/;
+
+#include <dt-bindings/clock/sprd,sharkl5-clk.h>
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+
+/ {
+	model = "W527 UMS312 1H10 (V-line minimal)";
+	compatible = "sprd,ums312";
+
+	#address-cells = <2>;
+	#size-cells = <2>;
+
+	aliases {
+		serial1 = &uart1;
+	};
+
+	memory: memory {
+		device_type = "memory";
+		reg = <0x0 0x80000000 0x0 0x80000000>;
+	};
+
+	chosen {
+		stdout-path = &uart1;
+		bootargs = "earlycon=sprd_serial,0x70100000,115200n8 console=ttyS1,115200n8 loglevel=7 printk.devkmsg=on";
+	};
+
+	psci {
+		compatible = "arm,psci-0.2";
+		method = "smc";
+	};
+
+	cpus {
+		#address-cells = <2>;
+		#size-cells = <0>;
+
+		cpu-map {
+			cluster0 {
+				core0 { cpu = <&CPU0>; };
+				core1 { cpu = <&CPU1>; };
+				core2 { cpu = <&CPU2>; };
+			};
+			cluster1 {
+				core0 { cpu = <&CPU3>; };
+			};
+		};
+
+		CPU0: cpu@0 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a55", "arm,armv8";
+			reg = <0x0 0x0>;
+			enable-method = "psci";
+		};
+		CPU1: cpu@100 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a55", "arm,armv8";
+			reg = <0x0 0x100>;
+			enable-method = "psci";
+		};
+		CPU2: cpu@200 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a55", "arm,armv8";
+			reg = <0x0 0x200>;
+			enable-method = "psci";
+		};
+		CPU3: cpu@300 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a55", "arm,armv8";
+			reg = <0x0 0x300>;
+			enable-method = "psci";
+		};
+	};
+
+	gic: interrupt-controller@12000000 {
+		compatible = "arm,gic-v3";
+		#interrupt-cells = <3>;
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+		redistributor-stride = <0x0 0x20000>;
+		#redistributor-regions = <1>;
+		interrupt-controller;
+		reg = <0x0 0x12000000 0 0x20000>,	/* GICD */
+		      <0x0 0x12040000 0 0x80000>;	/* GICR */
+		interrupts = <GIC_PPI 9 IRQ_TYPE_LEVEL_HIGH>;
+	};
+
+	timer {
+		compatible = "arm,armv8-timer";
+		interrupts = <GIC_PPI 13 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_PPI 14 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_PPI 11 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_PPI 10 IRQ_TYPE_LEVEL_HIGH>;
+	};
+
+	soc: soc {
+		compatible = "simple-bus";
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		ap_apb_regs: syscon@71000000 {
+			compatible = "syscon";
+			reg = <0 0x71000000 0 0x10000>;
+		};
+
+		ext_26m: ext-26m {
+			compatible = "fixed-clock";
+			#clock-cells = <0>;
+			clock-frequency = <26000000>;
+			clock-output-names = "ext-26m";
+		};
+
+		ap_clk: clock-controller@20200000 {
+			compatible = "sprd,sharkl5-ap-clk";
+			reg = <0 0x20200000 0 0x1000>;
+			clocks = <&ext_26m>;
+			clock-names = "ext-26m";
+			#clock-cells = <1>;
+		};
+
+		apapb_gate: apapb-gate {
+			compatible = "sprd,sharkl5-apapb-gate";
+			sprd,syscon = <&ap_apb_regs>;
+			clocks = <&ext_26m>;
+			clock-names = "ext-26m";
+			#clock-cells = <1>;
+		};
+
+		uart1: serial@70100000 {
+			compatible = "sprd,ums312-uart", "sprd,sc9836-uart";
+			reg = <0 0x70100000 0 0x100>;
+			interrupts = <GIC_SPI 3 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&apapb_gate CLK_UART1_EB>,
+				 <&ap_clk CLK_AP_UART1>,
+				 <&ext_26m>;
+			clock-names = "enable", "uart", "source";
+			status = "okay";
+		};
+	};
+};
