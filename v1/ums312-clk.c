@@ -25,10 +25,10 @@
 /* pll gate clock */
 
 /*
- * W527 V-line: 4.14 BSP -> mainline framework compat mapping.
- * Transformation verified against ums512-clk.c (same-family golden pair).
- * DT-root parents stay fw_name; internal parents were converted to
- * clk_hw pointers by scripts (name2struct table from this file).
+ * W527 V-line: 4.14 BSP -> mainline framework migration (scripted).
+ * Rules verified against the sharkl5pro(4.14)/ums512(mainline) golden pair.
+ * DT-root parents stay fw_name; internal parents are clk_hw pointers;
+ * _SEC (BSP DVFS svc) clocks dropped; itable_shared -> flat itable ladder.
  */
 static CLK_FIXED_FACTOR_FW_NAME(fac_13m, "fac-13m", "ext-26m", 2, 1, 0);
 static CLK_FIXED_FACTOR_FW_NAME(fac_6m5, "fac-6m5", "ext-26m", 4, 1, 0);
@@ -111,13 +111,7 @@ static const struct sprd_clk_desc ums312_pmu_gate_desc = {
 };
 
 /* pll clock at g0 */
-static struct freq_table dpll0_ftable[5] = {
-	{ .ibias = 2, .max_freq = 1173000000ULL },
-	{ .ibias = 3, .max_freq = 1475000000ULL },
-	{ .ibias = 4, .max_freq = 1855000000ULL },
-	{ .ibias = 5, .max_freq = 1866000000ULL },
-	{ .ibias = INVALID_MAX_IBIAS, .max_freq = INVALID_MAX_FREQ },
-};
+static const u64 itable_dpll0[7] = { 6, 0, 0, 1173000000ULL, 1475000000ULL, 1855000000ULL, 1866000000ULL };
 
 static struct clk_bit_field f_dpll0[PLL_FACT_MAX] = {
 	{ .shift = 18,	.width = 1 },	/* lock_done	*/
@@ -133,7 +127,7 @@ static struct clk_bit_field f_dpll0[PLL_FACT_MAX] = {
 	{ .shift = 0,	.width = 0 },	/* postdiv	*/
 };
 static SPRD_PLL_WITH_ITABLE_1K(dpll0_clk, "dpll0", "dpll0-gate", 0x4,
-				   3, dpll0_ftable, f_dpll0, 240);
+				   3, itable_dpll0, f_dpll0, 240);
 static CLK_FIXED_FACTOR_HW(dpll0_58m31, "dpll0-58m31", &dpll0_clk.common.hw, 32, 1, 0);
 
 static struct sprd_clk_common *ums312_g0_pll_clks[] = {
@@ -156,15 +150,7 @@ static const struct sprd_clk_desc ums312_g0_pll_desc = {
 };
 
 /* pll clock at g2 */
-static struct freq_table mpll_ftable[7] = {
-	{ .ibias = 1, .max_freq = 1400000000ULL },
-	{ .ibias = 2, .max_freq = 1600000000ULL },
-	{ .ibias = 3, .max_freq = 1800000000ULL },
-	{ .ibias = 4, .max_freq = 2000000000ULL },
-	{ .ibias = 5, .max_freq = 2200000000ULL },
-	{ .ibias = 6, .max_freq = 2500000000ULL },
-	{ .ibias = INVALID_MAX_IBIAS, .max_freq = INVALID_MAX_FREQ },
-};
+static const u64 itable_mpll[8] = { 7, 0, 1400000000ULL, 1600000000ULL, 1800000000ULL, 2000000000ULL, 2200000000ULL, 2500000000ULL };
 
 static struct clk_bit_field f_mpll[PLL_FACT_MAX] = {
 	{ .shift = 17,	.width = 1 },	/* lock_done	*/
@@ -180,7 +166,7 @@ static struct clk_bit_field f_mpll[PLL_FACT_MAX] = {
 	{ .shift = 77,	.width = 1 },	/* postdiv	*/
 };
 static SPRD_PLL_WITH_ITABLE_K_FVCO(mpll1_clk, "mpll1", "mpll1-gate", 0x0,
-				   3, mpll_ftable, f_mpll, 240,
+				   3, itable_mpll, f_mpll, 240,
 				   1000, 1000, 1, 1200000000);
 static CLK_FIXED_FACTOR_HW(mpll1_63m38, "mpll1-63m38", &mpll1_clk.common.hw, 32, 1, 0);
 
@@ -204,14 +190,7 @@ static const struct sprd_clk_desc ums312_g2_pll_desc = {
 };
 
 /* pll at g3 */
-static struct freq_table ftable[6] = {
-	{ .ibias = 2, .max_freq = 900000000ULL },
-	{ .ibias = 3, .max_freq = 1100000000ULL },
-	{ .ibias = 4, .max_freq = 1300000000ULL },
-	{ .ibias = 5, .max_freq = 1500000000ULL },
-	{ .ibias = 6, .max_freq = 1600000000ULL },
-	{ .ibias = INVALID_MAX_IBIAS, .max_freq = INVALID_MAX_FREQ },
-};
+static const u64 itable_shared[8] = { 7, 0, 0, 900000000ULL, 1100000000ULL, 1300000000ULL, 1500000000ULL, 1600000000ULL };
 
 static struct clk_bit_field f_pll[PLL_FACT_MAX] = {
 	{ .shift = 18,	.width = 1 },	/* lock_done	*/
@@ -229,7 +208,7 @@ static struct clk_bit_field f_pll[PLL_FACT_MAX] = {
 
 #define f_rpll f_pll
 static SPRD_PLL_WITH_ITABLE_K_FVCO(rpll_clk, "rpll", "ext-26m", 0x0,
-				   3, ftable, f_rpll, 240,
+				   3, itable_shared, f_rpll, 240,
 				   1000, 1000, 1, 750000000);
 
 static SPRD_SC_GATE_CLK_FW_NAME(audio_gate,	"audio-gate",	"ext-26m", 0x24,
@@ -249,21 +228,14 @@ static struct clk_bit_field f_mpll2[PLL_FACT_MAX] = {
 	{ .shift = 77,	.width = 1 },	/* postdiv	*/
 };
 static SPRD_PLL_WITH_ITABLE_K_FVCO(mpll0_clk, "mpll0", "mpll0-gate", 0x54,
-				   3, mpll_ftable, f_mpll, 240,
+				   3, itable_mpll, f_mpll, 240,
 				   1000, 1000, 1, 1200000000);
 static CLK_FIXED_FACTOR_HW(mpll0_56m88, "mpll0-56m88", &mpll0_clk.common.hw, 32, 1, 0);
 
-static struct freq_table mpll2_ftable[6] = {
-	{ .ibias = 0, .max_freq = 1200000000ULL },
-	{ .ibias = 1, .max_freq = 1400000000ULL },
-	{ .ibias = 2, .max_freq = 1600000000ULL },
-	{ .ibias = 3, .max_freq = 1800000000ULL },
-	{ .ibias = 4, .max_freq = 2000000000ULL },
-	{ .ibias = INVALID_MAX_IBIAS, .max_freq = INVALID_MAX_FREQ },
-};
+static const u64 itable_mpll2[6] = { 5, 1200000000ULL, 1400000000ULL, 1600000000ULL, 1800000000ULL, 2000000000ULL };
 
 static SPRD_PLL_WITH_ITABLE_K_FVCO(mpll2_clk, "mpll2", "mpll2-gate", 0x9c,
-				   3, mpll2_ftable, f_mpll2, 240,
+				   3, itable_mpll2, f_mpll2, 240,
 				   1000, 1000, 1, 1000000000);
 static CLK_FIXED_FACTOR_HW(mpll2_47m13, "mpll2-47m13", &mpll2_clk.common.hw, 32, 1, 0);
 
@@ -296,7 +268,7 @@ static const struct sprd_clk_desc ums312_g3_pll_desc = {
 /* pll clock at gc */
 #define f_twpll f_pll
 static SPRD_PLL_WITH_ITABLE_K_FVCO(twpll_clk, "twpll", "ext-26m", 0x0,
-				   3, ftable, f_twpll, 240,
+				   3, itable_shared, f_twpll, 240,
 				   1000, 1000, 1, 750000000);
 static CLK_FIXED_FACTOR_HW(twpll_768m, "twpll-768m", &twpll_clk.common.hw, 2, 1, 0);
 static CLK_FIXED_FACTOR_HW(twpll_384m, "twpll-384m", &twpll_clk.common.hw, 4, 1, 0);
@@ -320,7 +292,7 @@ static CLK_FIXED_FACTOR_HW(twpll_19m2, "twpll-19m2", &twpll_clk.common.hw, 80, 1
 
 #define f_lpll f_twpll
 static SPRD_PLL_WITH_ITABLE_K_FVCO(lpll_clk, "lpll", "lpll-gate", 0x18,
-				   3, ftable, f_lpll, 240,
+				   3, itable_shared, f_lpll, 240,
 				   1000, 1000, 1, 750000000);
 static CLK_FIXED_FACTOR_HW(lpll_614m4, "lpll-614m4", &lpll_clk.common.hw, 2, 1, 0);
 static CLK_FIXED_FACTOR_HW(lpll_409m6, "lpll-409m6", &lpll_clk.common.hw, 3, 1, 0);
@@ -328,20 +300,20 @@ static CLK_FIXED_FACTOR_HW(lpll_245m76, "lpll-245m76", &lpll_clk.common.hw, 5, 1
 
 #define f_isppll f_twpll
 static SPRD_PLL_WITH_ITABLE_K_FVCO(isppll_clk, "isppll", "isppll-gate", 0x30,
-				   3, ftable, f_isppll, 240,
+				   3, itable_shared, f_isppll, 240,
 				   1000, 1000, 1, 750000000);
 static CLK_FIXED_FACTOR_HW(isppll_468m, "isppll-468m", &isppll_clk.common.hw, 2, 1, 0);
 static CLK_FIXED_FACTOR_HW(isppll_78m, "isppll-78m", &isppll_clk.common.hw, 12, 1, 0);
 
 #define f_gpll f_twpll
 static SPRD_PLL_WITH_ITABLE_K_FVCO(gpll_clk, "gpll", "gpll-gate", 0x48,
-				   3, ftable, f_gpll, 240,
+				   3, itable_shared, f_gpll, 240,
 				   1000, 1000, 1, 750000000);
 static CLK_FIXED_FACTOR_HW(gpll_40m, "gpll-40m", &gpll_clk.common.hw, 20, 1, 0);
 
 #define f_cppll f_twpll
 static SPRD_PLL_WITH_ITABLE_K_FVCO(cppll_clk, "cppll", "cppll-gate", 0x60,
-				   3, ftable, f_cppll, 240,
+				   3, itable_shared, f_cppll, 240,
 				   1000, 1000, 1, 750000000);
 static CLK_FIXED_FACTOR_HW(cppll_39m32, "cppll-39m32", &cppll_clk.common.hw, 26, 1, 0);
 
@@ -404,12 +376,9 @@ static const struct clk_parent_data acore_parents[] = {
 	{ .hw = &twpll_clk.common.hw },
 	{ .hw = &mpll0_clk.common.hw }
 };
-static SPRD_COMP_CLK_DATA(acore0_clk, "acore0-clk", acore_parents,
-			 0, 2, 4, 3, 0);
-static SPRD_COMP_CLK_DATA(acore1_clk, "acore1-clk", acore_parents,
-			 8, 2, 12, 3, 0);
-static SPRD_COMP_CLK_DATA(acore2_clk, "acore2-clk", acore_parents,
-			 16, 2, 20, 3, 0);
+/* acore0_clk: dropped (BSP DVFS svc-attached; mainline has no svc path) */
+/* acore1_clk: dropped (BSP DVFS svc-attached; mainline has no svc path) */
+/* acore2_clk: dropped (BSP DVFS svc-attached; mainline has no svc path) */
 
 static const struct clk_parent_data pcore_parents[] = {
 	{ .fw_name = "ext-26m" },
@@ -417,8 +386,7 @@ static const struct clk_parent_data pcore_parents[] = {
 	{ .hw = &twpll_clk.common.hw },
 	{ .hw = &mpll1_clk.common.hw }
 };
-static SPRD_COMP_CLK_DATA(pcore_clk, "pcore-clk", pcore_parents,
-			 0, 2, 4, 3, 0);
+/* pcore_clk: dropped (BSP DVFS svc-attached; mainline has no svc path) */
 
 static const struct clk_parent_data scu_parents[] = {
 	{ .fw_name = "ext-26m" },
@@ -426,10 +394,8 @@ static const struct clk_parent_data scu_parents[] = {
 	{ .hw = &lpll_clk.common.hw },
 	{ .hw = &mpll2_clk.common.hw }
 };
-static SPRD_COMP_CLK_DATA(scu_clk, "scu-clk", scu_parents,
-			 0, 2, 4, 3, 0);
-static SPRD_DIV_CLK_HW(ace_clk, "ace-clk", "scu-clk",
-			12, 3, 0);
+/* scu_clk: dropped (BSP DVFS svc-attached; mainline has no svc path) */
+/* ace_clk: dropped (BSP DVFS svc-attached; mainline has no svc path) */
 
 static const struct clk_parent_data periph_parents[] = {
 	{ .fw_name = "ext-26m" },
@@ -437,8 +403,7 @@ static const struct clk_parent_data periph_parents[] = {
 	{ .hw = &twpll_512m.hw },
 	{ .hw = &twpll_768m.hw }
 };
-static SPRD_COMP_CLK_DATA(periph_clk, "periph-clk", periph_parents,
-			 24, 2, 28, 3, 0);
+/* periph_clk: dropped (BSP DVFS svc-attached; mainline has no svc path) */
 
 static const struct clk_parent_data gic_parents[] = {
 	{ .fw_name = "ext-26m" },
@@ -446,41 +411,17 @@ static const struct clk_parent_data gic_parents[] = {
 	{ .hw = &twpll_384m.hw },
 	{ .hw = &twpll_512m.hw }
 };
-static SPRD_COMP_CLK_DATA(gic_clk, "gic-clk", gic_parents,
-			 16, 2, 20, 3, 0);
+/* gic_clk: dropped (BSP DVFS svc-attached; mainline has no svc path) */
 
-static SPRD_COMP_CLK_DATA(atb_clk, "atb-clk", periph_parents,
-			 0, 2, 4, 3, 0);
-static SPRD_DIV_CLK_HW(debug_apb_clk, "debug-apb-clk", "atb-clk",
-			12, 3, 0);
+/* atb_clk: dropped (BSP DVFS svc-attached; mainline has no svc path) */
+/* debug_apb_clk: dropped (BSP DVFS svc-attached; mainline has no svc path) */
 
 static struct sprd_clk_common *ums312_apcpu_clks[] = {
 	/* address base is 0x32880000 */
-	&acore0_clk.common,
-	&acore1_clk.common,
-	&acore2_clk.common,
-	&pcore_clk.common,
-	&scu_clk.common,
-	&ace_clk.common,
-	&periph_clk.common,
-	&gic_clk.common,
-	&atb_clk.common,
-	&debug_apb_clk.common,
 };
 
 static struct clk_hw_onecell_data ums312_apcpu_hws = {
-	.hws	= {
-		[CLK_ACORE0]	= &acore0_clk.common.hw,
-		[CLK_ACORE1]	= &acore1_clk.common.hw,
-		[CLK_ACORE2]	= &acore2_clk.common.hw,
-		[CLK_PCORE]	= &pcore_clk.common.hw,
-		[CLK_SCU]	= &scu_clk.common.hw,
-		[CLK_ACE]	= &ace_clk.common.hw,
-		[CLK_PERIPH]	= &periph_clk.common.hw,
-		[CLK_GIC]	= &gic_clk.common.hw,
-		[CLK_ATB]	= &atb_clk.common.hw,
-		[CLK_DEBUG_APB]	= &debug_apb_clk.common.hw,
-	},
+	.hws	= { NULL },
 	.num	= CLK_APCPU_SEC_NUM,
 };
 
