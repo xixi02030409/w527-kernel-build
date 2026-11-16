@@ -56,29 +56,31 @@ jobs:
           set -o pipefail
           make ARCH=arm64 LLVM=1 -j$(nproc) Image dtbs 2>&1 | tee build.log
           ls -l arch/arm64/boot/Image
-          ls arch/arm64/boot/dts/sprd/*.dtb 2>/dev/null | head -8 || true
 
-      - name: Post-build audit
-        run: |
-          cd src
-          python3 - << 'PY'
-          import struct
-          d = open('arch/arm64/boot/Image','rb').read()
-          print("Image size:", len(d))
-          br = struct.unpack('<I', d[:4])[0] >> 24
-          print("arm64 branch opcode:", hex(br))
-          assert br == 0x14, "not an arm64 Image"
-          print("OK: raw arm64 Image")
-          PY
-
-      - name: Upload artifacts
+      - name: Upload artifacts (before audit, always)
         uses: actions/upload-artifact@v4
         with:
           name: vline-${{ inputs.variant }}
           path: |
             src/arch/arm64/boot/Image
             src/build.log
-          if-no-files-found: ignore
+          if-no-files-found: warn
+
+      - name: Post-build audit (version-proof: ARM\\x64 magic @0x38)
+        run: |
+          cd src
+          python3 - << 'PY'
+          import struct
+          d = open('arch/arm64/boot/Image','rb').read()
+          print("Image size:", len(d))
+          print("first16:", d[:16].hex())
+          magic = d[0x38:0x3c]
+          print("magic@0x38:", magic)
+          assert magic == b'ARM\x64', "bad arm64 Image magic"
+          w0 = struct.unpack('<I', d[:4])[0] >> 24
+          print("word0 opcode:", hex(w0), "(0x14=classic branch / 0xfa=modern MZ ccmp)")
+          print("OK: valid arm64 Image")
+          PY
 
       - name: Release
         uses: softprops/action-gh-release@v1
