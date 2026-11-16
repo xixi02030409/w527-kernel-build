@@ -103,6 +103,23 @@
 			     <GIC_PPI 10 IRQ_TYPE_LEVEL_HIGH>;
 	};
 
+
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		/* factory-proven crash log region (地址表 §4) */
+		ramoops@9ef80000 {
+			compatible = "ramoops";
+			reg = <0x0 0x9ef80000 0x0 0x100000>;
+			console-size = <0x40000>;
+			record-size = <0x20000>;
+			pmsg-size = <0x40000>;
+			ecc-size = <0>;
+		};
+	};
+
 	soc: soc {
 		compatible = "simple-bus";
 		#address-cells = <2>;
