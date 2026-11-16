@@ -1,0 +1,89 @@
+name: V-line build (mainline unisoc, dual track)
+
+on:
+  workflow_dispatch:
+    inputs:
+      variant:
+        description: 'v-max = ums9230 branch (mainline 6.19-rc2) | v-lts = v6.12 tag'
+        required: true
+        default: 'v-max'
+      cross:
+        description: 'extra make args (e.g. CROSS or kbuild opts), empty = default'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Pick tree ref
+        id: ref
+        run: |
+          if [ "${{ inputs.variant }}" = "v-lts" ]; then
+            echo "ref=v6.12" >> $GITHUB_OUTPUT
+          else
+            echo "ref=ums9230" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Clone unisoc mainline tree
+        run: |
+          git clone --depth 1 --branch ${{ steps.ref.outputs.ref }} \
+            https://github.com/sprd-linux/ums9230-mainline-linux.git src
+          cd src && git log --oneline -3
+
+      - name: Install toolchain
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y bc bison flex libssl-dev libelf-dev cpio xz-utils \
+            gcc-aarch64-linux-gnu
+          aarch64-linux-gnu-gcc --version | head -1
+
+      - name: Configure (unisoc default defconfig)
+        run: |
+          cd src
+          export ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu-
+          make defconfig
+          grep -c "=y" .config | head -1
+
+      - name: Build Image + dtbs
+        run: |
+          cd src
+          export ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu-
+          set -o pipefail
+          make -j$(nproc) Image dtbs ${{ inputs.cross }} 2>&1 | tee build.log
+          ls -l arch/arm64/boot/Image
+          echo "=== dtb sample ==="
+          ls arch/arm64/boot/dts/sprd/*.dtb 2>/dev/null | head -8 || true
+
+      - name: Post-build audit
+        run: |
+          cd src
+          python3 - << 'PY'
+          import struct
+          d = open('arch/arm64/boot/Image','rb').read()
+          print("Image size:", len(d))
+          br = struct.unpack('<I', d[:4])[0] >> 24
+          print("arm64 branch opcode:", hex(br))
+          assert br == 0x14, "not an arm64 Image"
+          print("OK")
+          PY
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: vline-${{ inputs.variant }}
+          path: |
+            src/arch/arm64/boot/Image
+            src/build.log
+          if-no-files-found: ignore
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: vline-${{ inputs.variant }}-${{ github.run_id }}
+          files: |
+            src/arch/arm64/boot/Image
+            src/build.log
