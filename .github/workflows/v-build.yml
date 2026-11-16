@@ -45,7 +45,7 @@ jobs:
           curl -sL "https://raw.githubusercontent.com/xixi02030409/w527-kernel-build/main/v1/ums312-clk.c" -o src/drivers/clk/sprd/ums312-clk.c
           curl -sL "https://raw.githubusercontent.com/xixi02030409/w527-kernel-build/main/v1/sprd,sharkl5-clk.h" -o src/include/dt-bindings/clock/sprd,sharkl5-clk.h
           grep -q SPRD_UMS312_CLK src/drivers/clk/sprd/Kconfig || printf '\nconfig SPRD_UMS312_CLK\n\ttristate "Support for the Spreadtrum UMS312 (sharkl5) clocks"\n\tdepends on (ARM64 && ARCH_SPRD) || COMPILE_TEST\n\tdefault ARM64 && ARCH_SPRD\n\thelp\n\t  Support for the global clock controller on ums312 (sharkl5) SoC.\n' >> src/drivers/clk/sprd/Kconfig
-          grep -q "ums312-clk.o" src/drivers/clk/sprd/Makefile || echo 'obj-$(CONFIG_SPRD_UMS312_CLK)\t+= ums312-clk.o' >> src/drivers/clk/sprd/Makefile
+          grep -q "ums312-clk.o" src/drivers/clk/sprd/Makefile || echo 'obj-$(CONFIG_SPRD_UMS312_CLK) += ums312-clk.o' >> src/drivers/clk/sprd/Makefile
           head -3 src/drivers/clk/sprd/ums312-clk.c
 
       - name: Install clang toolchain
@@ -71,6 +71,8 @@ jobs:
           set -o pipefail
           make ARCH=arm64 LLVM=1 -j$(nproc) Image dtbs 2>&1 | tee build.log
           ls -l arch/arm64/boot/Image
+          test -f drivers/clk/sprd/ums312-clk.o && echo "UMS312 CLK BUILT" || { echo "FATAL: ums312-clk.o missing"; exit 1; }
+          grep -c "SPRD_UMS312_CLK=y" .config || { echo "FATAL: SPRD_UMS312_CLK not in .config"; exit 1; }
 
       - name: Upload artifacts before audit
         uses: actions/upload-artifact@v4
