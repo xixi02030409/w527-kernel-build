@@ -73,6 +73,7 @@ jobs:
             src/.config
             src/build.log
           if-no-files-found: warn
+          include-hidden-files: true
 
       - name: Post-build audit version-proof magic check
         run: |
