@@ -83,6 +83,7 @@ jobs:
           name: vline-${{ inputs.variant }}
           path: |
             src/arch/arm64/boot/Image
+            src/arch/arm64/boot/dts/sprd/ums312-1h10-v1.dtb
             src/.config
             src/build.log
           if-no-files-found: warn
@@ -110,4 +111,5 @@ jobs:
           tag_name: vline-${{ inputs.variant }}-${{ github.run_id }}
           files: |
             src/arch/arm64/boot/Image
+            src/arch/arm64/boot/dts/sprd/ums312-1h10-v1.dtb
             src/build.log
