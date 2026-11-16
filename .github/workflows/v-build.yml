@@ -4,13 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       variant:
-        description: 'v-max = ums9230 branch (mainline 6.19-rc2) | v-lts = v6.12 tag'
+        description: 'v-max = v7.2-rc6-ums9230-0 (codeberg) | v-lts = v6.12 tag'
         required: true
         default: 'v-max'
-      cross:
-        description: 'extra make args (e.g. CROSS or kbuild opts), empty = default'
-        required: false
-        default: ''
 
 permissions:
   contents: write
@@ -23,39 +19,43 @@ jobs:
         id: ref
         run: |
           if [ "${{ inputs.variant }}" = "v-lts" ]; then
+            echo "repo=https://github.com/sprd-linux/ums9230-mainline-linux.git" >> $GITHUB_OUTPUT
             echo "ref=v6.12" >> $GITHUB_OUTPUT
           else
-            echo "ref=ums9230" >> $GITHUB_OUTPUT
+            echo "repo=https://codeberg.org/ums9230-mainline/linux.git" >> $GITHUB_OUTPUT
+            echo "ref=v7.2-rc6-ums9230-0" >> $GITHUB_OUTPUT
           fi
 
       - name: Clone unisoc mainline tree
         run: |
-          git clone --depth 1 --branch ${{ steps.ref.outputs.ref }} \
-            https://github.com/sprd-linux/ums9230-mainline-linux.git src
-          cd src && git log --oneline -3
+          git clone --depth 1 --branch ${{ steps.ref.outputs.ref }} ${{ steps.ref.outputs.repo }} src
+          cd src && git log --oneline -3 && head -5 Makefile
 
-      - name: Install toolchain
+      - name: Fetch pmOS config
+        run: |
+          curl -sL "https://raw.githubusercontent.com/xixi02030409/w527-kernel-build/main/configs/ums9230-pmos.config" -o src/pmos.config
+          head -3 src/pmos.config
+
+      - name: Install clang toolchain
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y bc bison flex libssl-dev libelf-dev cpio xz-utils \
-            gcc-aarch64-linux-gnu
-          aarch64-linux-gnu-gcc --version | head -1
+            clang llvm lld pahole zstd
+          clang --version | head -1
 
-      - name: Configure (unisoc default defconfig)
+      - name: Configure (pmOS config + olddefconfig)
         run: |
           cd src
-          export ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu-
-          make defconfig
-          grep -c "=y" .config | head -1
+          cp pmos.config .config
+          make ARCH=arm64 LLVM=1 olddefconfig
+          grep -E "CONFIG_ARCH_SPRD|CONFIG_EFI_ZBOOT" .config || true
 
       - name: Build Image + dtbs
         run: |
           cd src
-          export ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu-
           set -o pipefail
-          make -j$(nproc) Image dtbs ${{ inputs.cross }} 2>&1 | tee build.log
+          make ARCH=arm64 LLVM=1 -j$(nproc) Image dtbs 2>&1 | tee build.log
           ls -l arch/arm64/boot/Image
-          echo "=== dtb sample ==="
           ls arch/arm64/boot/dts/sprd/*.dtb 2>/dev/null | head -8 || true
 
       - name: Post-build audit
@@ -68,7 +68,7 @@ jobs:
           br = struct.unpack('<I', d[:4])[0] >> 24
           print("arm64 branch opcode:", hex(br))
           assert br == 0x14, "not an arm64 Image"
-          print("OK")
+          print("OK: raw arm64 Image")
           PY
 
       - name: Upload artifacts
