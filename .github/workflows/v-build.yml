@@ -7,6 +7,10 @@ on:
         description: 'v-max = v7.2-rc6-ums9230-0 (codeberg) or v-lts = v6.12 tag'
         required: true
         default: 'v-max'
+      config_name:
+        description: 'config file under configs/ of this repo'
+        required: true
+        default: 'ums9230-pmos.config'
 
 permissions:
   contents: write
@@ -31,10 +35,10 @@ jobs:
           git clone --depth 1 --branch ${{ steps.ref.outputs.ref }} ${{ steps.ref.outputs.repo }} src
           cd src && git log --oneline -3 && head -5 Makefile
 
-      - name: Fetch pmOS config
+      - name: Fetch config
         run: |
-          curl -sL "https://raw.githubusercontent.com/xixi02030409/w527-kernel-build/main/configs/ums9230-pmos.config" -o src/pmos.config
-          head -3 src/pmos.config
+          curl -sL "https://raw.githubusercontent.com/xixi02030409/w527-kernel-build/main/configs/${{ inputs.config_name }}" -o src/k.config
+          head -3 src/k.config
 
       - name: Install clang toolchain
         run: |
@@ -43,12 +47,15 @@ jobs:
             clang llvm lld pahole zstd
           clang --version | head -1
 
-      - name: Configure via pmOS config and olddefconfig
+      - name: Configure via olddefconfig
         run: |
           cd src
-          cp pmos.config .config
+          cp k.config .config
           make ARCH=arm64 LLVM=1 olddefconfig
-          grep -E "CONFIG_ARCH_SPRD|CONFIG_EFI_ZBOOT" .config || true
+          echo "=== survived critical options ==="
+          grep -E "ARCH_SPRD|SERIAL_SPRD|MMC_BLOCK=|MFD_SC27XX|REGULATOR_SC2730|ARM_CPUIDLE|F2FS_FS=|EXT4_FS=|DEVTMPFS_MOUNT" .config || true
+          echo "=== compression/size switches ==="
+          grep -E "CONFIG_KERNEL_GZIP|CONFIG_KERNEL_ZSTD|CONFIG_EFI_ZBOOT|CONFIG_DEBUG_INFO" .config || true
 
       - name: Build Image and dtbs
         run: |
@@ -63,6 +70,7 @@ jobs:
           name: vline-${{ inputs.variant }}
           path: |
             src/arch/arm64/boot/Image
+            src/.config
             src/build.log
           if-no-files-found: warn
 
